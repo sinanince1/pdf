@@ -30,8 +30,7 @@ jobs:
         env:
           PANDAF_LIBREOFFICE: '1'
         run: |
-          New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'smoke') | Out-Null
-          $out = Join-Path $env:RUNNER_TEMP 'smoke/motor-testleri.txt'
+          $out = Join-Path $env:RUNNER_TEMP 'motor-testleri.txt'
           dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | Tee-Object -FilePath $out
           $code = $LASTEXITCODE
           $text = (Get-Content $out -Raw) -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
@@ -69,6 +68,8 @@ jobs:
           New-Item -ItemType Directory -Force $pub | Out-Null
           if (Test-Path "$smoke/ekran") { Copy-Item "$smoke/ekran/*.png" $pub }
           Get-ChildItem $smoke -Filter *.txt -ErrorAction SilentlyContinue | Copy-Item -Destination $pub
+          $engine = Join-Path $env:RUNNER_TEMP 'motor-testleri.txt'
+          if (Test-Path $engine) { Copy-Item $engine $pub }
           Set-Content "$pub/README.md" "Otomatik derlemenin ekran görüntüleri ve test raporları. Kaynak: $env:GITHUB_SHA"
           Set-Location $pub
           git init -q -b ekran-goruntuleri
