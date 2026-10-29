@@ -88,7 +88,8 @@ internal static class SmokeTest
             // Shift paneli: seçenekler ve görünüm
             Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["organize", "split", "word", "jpg"]), "Tek PDF için panel seçenekleri");
             Check(PandaWheel.For([threePages, copy]).Select(c => c.Id).SequenceEqual(["merge", "word", "jpg"]), "Birden fazla PDF için panel seçenekleri");
-            Check(PandaWheel.For(images).First().Id == "topdf", "Resimler için panel: PDF yap");
+            Check(PandaWheel.For(images).Select(c => c.Id).SequenceEqual(["pdf-combine", "pdf-separate", "open"]), "Birden fazla resim için panel seçenekleri");
+            Check(PandaWheel.For([images[0]]).First().Id == "pdf", "Tek resim için panel: PDF yap");
             var panels = new List<(IReadOnlyList<string> Sample, string Name, int Index)>
             {
                 (new[] { threePages }, "11-panel-tek-pdf.png", 1),
@@ -105,10 +106,21 @@ internal static class SmokeTest
                 wheel.Close();
             }
 
-            // Panelden hızlı işlem: PDF'yi doğrudan resme çevir
-            window.QuickAction("jpg", [threePages]);
-            var quick = await Result(window);
-            Check(Directory.Exists(quick[0]) && Directory.GetFiles(quick[0], "*.jpg").Length == 3, "Panelden hızlı işlem (resme çevir)");
+            // Panelden sessiz işlem: pencere açılmadan, dosyanın yanına kaydeder
+            var overlay = (Grid)window.FindName("ResultOverlay");
+            var quickTask = window.QuickConvertAsync("jpg", [threePages]);
+            await Settle(150);
+            CaptureToast(Path.Combine(shots, "14-bildirim-calisiyor.png"));
+            var quick = await quickTask;
+            Check(quick.Count == 1 && Directory.Exists(quick[0]) && Directory.GetFiles(quick[0], "*.jpg").Length == 3, "Panelden sessiz işlem: PDF → resim");
+            await Settle();
+            CaptureToast(Path.Combine(shots, "15-bildirim-hazir.png"));
+            var single = await window.QuickConvertAsync("pdf", [images[0]]);
+            Check(single.Count == 1 && Path.GetFileName(single[0]) == "Yatay resim.pdf" && Path.GetDirectoryName(single[0]) == Path.GetDirectoryName(images[0]), "Panelden sessiz işlem: resim → aynı klasöre aynı adla PDF");
+            var combined = await window.QuickConvertAsync("pdf-combine", images);
+            Check(combined.Count == 1 && PdfPages.PageCount(combined[0]) == 3, "Panelden sessiz işlem: 3 resim → tek PDF");
+            Check(overlay.Visibility != Visibility.Visible, "Sessiz işlemde uygulama penceresi sonuç göstermedi");
+            foreach (var toast in Application.Current.Windows.OfType<Toast>().ToList()) toast.Close();
 
             window.GoHome(); await Settle();
             Check(window.SmokeErrors.Count == 0, "Arayüz hata göstermedi" + (window.SmokeErrors.Count > 0 ? ": " + string.Join(" | ", window.SmokeErrors) : ""));
@@ -160,6 +172,11 @@ internal static class SmokeTest
     {
         await Task.Delay(milliseconds);
         Application.Current.MainWindow?.UpdateLayout();
+    }
+
+    private static void CaptureToast(string path)
+    {
+        if (Application.Current.Windows.OfType<Toast>().LastOrDefault() is { } toast) Capture(toast, path);
     }
 
     private static void Capture(Window window, string path)

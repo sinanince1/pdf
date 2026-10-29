@@ -76,9 +76,10 @@ public sealed class GlobalDragWatcher : IDisposable
         if (opened || Math.Abs(point.X - start.X) + Math.Abs(point.Y - start.Y) < 10) return;
         if (!OnlyShift) return;
         opened = true;
-        if (InMoveSize()) return;
+        if (InMoveSize()) { PanelLog.Write("Pencere taşınıyor; panel açılmadı."); return; }
         // PanDaF penceresinin içindeki sürüklemeler (ör. sayfa sıralama) paneli açmaz.
-        if (GetForegroundWindow() == new WindowInteropHelper(owner).Handle) return;
+        if (GetForegroundWindow() == new WindowInteropHelper(owner).Handle && owner.IsVisible) { PanelLog.Write("Sürükleme PanDaF penceresinin içinde; panel açılmadı."); return; }
+        PanelLog.Write($"Shift ile sürükleme algılandı, panel açılıyor ({point.X},{point.Y}).");
         wheel = new PandaWheel((id, files) => owner.QuickAction(id, files));
         wheel.Show();
         PlaceAt(wheel, point.X, point.Y, PandaWheel.Diameter);
@@ -149,6 +150,7 @@ public sealed class PandaWheel : Window
             e.Handled = true;
             Close();
             // Dosyayı bırakan program (Gezgin) beklemesin: iş, bırakma bittikten sonra başlar.
+            PanelLog.Write(id.Length > 0 ? $"Bırakıldı: {id}" : "Boş yere bırakıldı (işlem yok).");
             if (id.Length > 0 && dropped.Length > 0)
                 Application.Current.Dispatcher.InvokeAsync(() => chosen(id, dropped), DispatcherPriority.Background);
         };
@@ -156,16 +158,21 @@ public sealed class PandaWheel : Window
     }
 
     /// Sürüklenen dosyalara göre paneldeki seçenekler.
+    /// pdf / pdf-combine / pdf-separate / word / jpg: pencere açılmadan, dosyanın yanına kaydeder.
+    /// merge / split / organize / open: ilgili aracı dosyalar yüklenmiş olarak açar.
     public static IReadOnlyList<WheelChoice> For(IReadOnlyList<string> files)
     {
         if (files.Count == 0) return [];
         var pdfs = files.Count(FileKinds.IsPdf);
+        var images = files.Count(FileKinds.IsImage);
         var convertible = files.Count(FileKinds.CanConvertToPdf);
         if (pdfs == 1 && files.Count == 1)
             return [new("organize", "Sayfaları düzenle", "\uE70F"), new("split", "Böl", "\uE8C6"), new("word", "Word'e çevir", "\uE8A5"), new("jpg", "Resme çevir", "\uE91B")];
         if (pdfs == files.Count)
             return [new("merge", "Birleştir", "\uE8C8"), new("word", "Word'e çevir", "\uE8A5"), new("jpg", "Resme çevir", "\uE91B")];
-        if (convertible == files.Count) return [new("topdf", "PDF yap", "\uE8A5"), new("open", "PanDaF'ta aç", "\uE8E5")];
+        if (images == files.Count && images > 1)
+            return [new("pdf-combine", "Tek PDF yap", "\uE8A5"), new("pdf-separate", "Ayrı PDF'ler", "\uE8C8"), new("open", "PanDaF'ta aç", "\uE8E5")];
+        if (convertible == files.Count) return [new("pdf", "PDF yap", "\uE8A5"), new("open", "PanDaF'ta aç", "\uE8E5")];
         if (pdfs + convertible > 0) return [new("open", "PanDaF'ta aç", "\uE8E5")];
         return [];
     }
@@ -177,14 +184,34 @@ public sealed class PandaWheel : Window
         Opacity = 1;
     }
 
+    private bool logged;
+    private bool virtualOnly;
+
     private void Track(DragEventArgs e)
     {
-        var dropped = e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
+        string[] dropped;
+        try { dropped = e.Data.GetData(DataFormats.FileDrop) as string[] ?? []; }
+        catch (Exception error) when (error is System.Runtime.InteropServices.COMException or OutOfMemoryException or ArgumentException) { dropped = []; }
+        if (!logged)
+        {
+            logged = true;
+            string formats;
+            try { formats = string.Join(", ", e.Data.GetFormats(false)); } catch (Exception error) when (error is System.Runtime.InteropServices.COMException) { formats = "?"; }
+            PanelLog.Write($"Dosya panele geldi. Dosya sayısı: {dropped.Length}. Biçimler: {formats}. Dosyalar: {string.Join(" | ", dropped.Take(5))}");
+        }
         if (!dropped.SequenceEqual(files))
         {
             files = Views.DropHelper.Expand(dropped);
             var updated = For(files);
             if (!updated.SequenceEqual(choices)) { choices = updated; Build(); }
+        }
+        // Tarayıcı indirmeleri, e-posta ekleri, ZIP içi dosyalar ve yalnızca çevrim içi bulut dosyaları
+        // gerçek bir dosya yolu taşımaz. Panel bu durumda görünmez kalmasın, ne yapılacağını söylesin.
+        if (files.Length == 0 && !virtualOnly && (e.Data.GetDataPresent("FileGroupDescriptorW") || e.Data.GetDataPresent("FileGroupDescriptor") || e.Data.GetDataPresent("Shell IDList Array")))
+        {
+            virtualOnly = true;
+            Revealed = false; Reveal();
+            if (centerText is not null) centerText.Text = "Bu dosya bir klasörde değil. Önce masaüstüne kaydedip oradan sürükleyin.";
         }
         var p = e.GetPosition(canvas);
         var distance = (p - new Point(Center, Center)).Length;
@@ -214,7 +241,7 @@ public sealed class PandaWheel : Window
             slices[n].Stroke = Res(n == index ? "Primary" : "Line");
             slices[n].StrokeThickness = n == index ? 4 : 2;
         }
-        if (centerText is not null)
+        if (centerText is not null && !virtualOnly)
             centerText.Text = index >= 0 ? choices[index].Title : choices.Count == 0 ? "PanDaF" : "Bir dilime bırakın";
     }
 
@@ -284,5 +311,21 @@ public sealed class PandaWheel : Window
         Build();
         Highlight(highlighted);
         Reveal();
+    }
+}
+
+/// Panelin ne yaptığını %LOCALAPPDATA%\PanDaF\panel-gunlugu.txt dosyasına yazar (sorun bildirmek için).
+internal static class PanelLog
+{
+    public static void Write(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(App.DataFolder);
+            var file = Path.Combine(App.DataFolder, "panel-gunlugu.txt");
+            if (File.Exists(file) && new FileInfo(file).Length > 300_000) File.Delete(file);
+            File.AppendAllText(file, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\r\n");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 }

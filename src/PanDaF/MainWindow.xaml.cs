@@ -17,16 +17,31 @@ public partial class MainWindow : Window
     public IReadOnlyList<string> LastOutputs => lastOutputs;
 
     private readonly Settings settings = Settings.Load();
-    private GlobalDragWatcher? watcher;
+    private readonly GlobalDragWatcher watcher;
+    private readonly SemaphoreSlim quickGate = new(1, 1);
+    private Tray? tray;
+    private bool exiting;
+    public Settings Settings => settings;
 
     public MainWindow()
     {
         InitializeComponent();
-        ShiftPanelToggle.IsChecked = settings.ShiftPanel;
         GoHome();
-        // Shift paneli: program açıkken (simge durumunda bile) dosya sürüklemelerini izler.
-        SourceInitialized += (_, _) => watcher = new GlobalDragWatcher(this, () => settings.ShiftPanel && !App.SmokeMode);
-        Closed += (_, _) => watcher?.Dispose();
+        // Shift paneli: PanDaF çalıştığı sürece (pencere kapalı, simgede olsa bile) dosya sürüklemelerini izler.
+        watcher = new GlobalDragWatcher(this, () => settings.ShiftPanel && !App.SmokeMode);
+        Closing += (_, e) =>
+        {
+            // Kapat düğmesi PanDaF'ı kapatmaz, sistem tepsisine gönderir; böylece Shift paneli çalışmaya devam eder.
+            if (exiting || App.SmokeMode || tray is null) return;
+            e.Cancel = true;
+            Hide();
+            if (!settings.TrayHintShown)
+            {
+                settings.TrayHintShown = true; settings.Save();
+                tray.Hint("PanDaF arka planda çalışıyor", "Shift paneli hazır. Pencereyi açmak için saatin yanındaki panda simgesine tıklayın; tamamen kapatmak için sağ tıklayıp \"PanDaF'tan çık\"ı seçin.");
+            }
+        };
+        Closed += (_, _) => { watcher.Dispose(); tray?.Dispose(); if (!App.SmokeMode) Application.Current?.Shutdown(); };
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key != Key.Escape) return;
@@ -178,16 +193,43 @@ public partial class MainWindow : Window
 
     private void Back_Click(object sender, RoutedEventArgs e) => GoHome();
 
-    private void ShiftPanel_Changed(object sender, RoutedEventArgs e)
+    /// Sistem tepsisi simgesini kurar (App başlangıcında çağrılır).
+    public void InstallTray()
     {
-        settings.ShiftPanel = ShiftPanelToggle.IsChecked == true;
-        settings.Save();
+        tray = new Tray(BringToFront, () => settings.ShiftPanel, SetShiftPanel, () => settings.StartWithWindows, SetStartup, ExitApp);
+    }
+
+    public void SetShiftPanel(bool on) { settings.ShiftPanel = on; settings.Save(); }
+
+    public void SetStartup(bool on) { settings.StartWithWindows = on; settings.Save(); Startup.Apply(on); }
+
+    public void ExitApp()
+    {
+        exiting = true;
+        Close();
+        Application.Current.Shutdown();
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = SettingsButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, FontSize = 15 };
+        var shift = new MenuItem { Header = "Shift paneli (dosya sürüklerken Shift'e basınca)", IsCheckable = true, IsChecked = settings.ShiftPanel };
+        shift.Click += (_, _) => SetShiftPanel(shift.IsChecked);
+        var startup = new MenuItem { Header = "Bilgisayar açılınca başlat", IsCheckable = true, IsChecked = settings.StartWithWindows };
+        startup.Click += (_, _) => SetStartup(startup.IsChecked);
+        var about = new MenuItem { Header = "Hakkında" };
+        about.Click += About_Click;
+        var exit = new MenuItem { Header = "PanDaF'tan çık" };
+        exit.Click += (_, _) => ExitApp();
+        menu.Items.Add(shift); menu.Items.Add(startup); menu.Items.Add(new Separator()); menu.Items.Add(about); menu.Items.Add(exit);
+        menu.IsOpen = true;
     }
 
     /// Shift panelinde bir dilime bırakılan dosyalar.
     public void QuickAction(string id, IReadOnlyList<string> files)
     {
         if (files.Count == 0) return;
+        if (id is "pdf" or "topdf" or "pdf-combine" or "pdf-separate" or "word" or "jpg") { _ = QuickConvertAsync(id, files); return; }
         BringToFront();
         if (IsBusy) { Info("Önceki işlem bitmeden yeni işlem başlatılamaz. Lütfen bekleyin."); return; }
         CloseResult();
@@ -196,14 +238,50 @@ public partial class MainWindow : Window
             case "merge": { var view = new MergeView(this); Navigate(view, "PDF birleştir"); view.Add(files); break; }
             case "split": { var view = new SplitView(this); Navigate(view, "PDF böl"); view.Load(files[0]); break; }
             case "organize": { var view = new OrganizeView(this); Navigate(view, "Sayfaları düzenle"); view.Load(files[0]); break; }
-            case "word": { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Word); break; }
-            case "jpg": { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Jpg); break; }
-            case "topdf": { var view = new ToPdfView(this); Navigate(view, "PDF'ye çevir"); view.Start(files); break; }
             default: OpenFiles(files); break;
         }
     }
 
-    private void BringToFront()
+    /// Pencere açılmadan, soru sormadan dönüştürür; sonucu asıl dosyanın yanına kaydeder ve sağ altta bildirir.
+    public async Task<IReadOnlyList<string>> QuickConvertAsync(string id, IReadOnlyList<string> files)
+    {
+        var converter = App.Converter;
+        var toPdf = id is "pdf" or "topdf" or "pdf-combine" or "pdf-separate";
+        // LibreOffice bir kez indirilecekse bunun için izin istemek gerekir: araç penceresi açılır.
+        if (toPdf ? converter.NeedsLibreOfficeToPdf(files) : id == "word" && converter.NeedsLibreOfficeForWord)
+        {
+            BringToFront();
+            if (toPdf) { var view = new ToPdfView(this); Navigate(view, "PDF'ye çevir"); view.Start(files); }
+            else { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Word); }
+            return [];
+        }
+        var heading = toPdf ? "PDF'ye çevriliyor" : id == "word" ? "Word belgesine çevriliyor" : "Resimlere çevriliyor";
+        var toast = Toast.Open(heading);
+        await quickGate.WaitAsync();
+        try
+        {
+            var token = toast.Cancellation.Token;
+            var progress = new Progress<OperationProgress>(toast.Progress);
+            var destination = OutputFolder.For(files[0]);
+            IReadOnlyList<string> result;
+            if (toPdf)
+            {
+                var images = files.Count(FileKinds.IsImage);
+                var combine = id == "pdf-combine" || (id != "pdf-separate" && images == 1 && files.Count == 1);
+                var name = images == 1 || !combine ? SafePaths.Stem(files[0]) : $"{SafePaths.Stem(files.First(FileKinds.IsImage))} ({images} resim)";
+                result = await converter.ToPdfAsync(files, destination, new ImageToPdfOptions(FitA4: true, Combine: combine, CombinedName: name), progress, token);
+            }
+            else result = await converter.FromPdfAsync(files, destination, id == "word" ? PdfTarget.Word : PdfTarget.Jpg, 150, progress, token);
+            toast.Done(result, toPdf ? (result.Count == 1 ? "PDF hazır" : $"{result.Count} PDF hazır") : id == "word" ? "Word belgesi hazır" : "Resimler hazır");
+            return result;
+        }
+        catch (OperationCanceledException) { toast.Cancelled(); return []; }
+        catch (UserFacingException error) { App.Log(error); toast.Fail(error.Message); if (App.SmokeMode) SmokeErrors.Add(error.Message); return []; }
+        catch (Exception error) { App.Log(error); toast.Fail("Beklenmeyen bir sorun oluştu: " + error.Message); if (App.SmokeMode) SmokeErrors.Add(error.Message); return []; }
+        finally { quickGate.Release(); }
+    }
+
+    public void BringToFront()
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Show();

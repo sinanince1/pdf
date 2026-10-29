@@ -16,13 +16,26 @@
 
 ### Shift paneli (en hızlı yol)
 
-PanDaF açıkken (simge durumuna küçültülmüş olsa bile) masaüstünde veya bir klasörde bir ya da birkaç dosyayı seçip **sürüklemeye başlayın ve Shift'e basın**. İmlecin altında PanDaF paneli açılır; dosyaları bir dilimin üzerine bırakın:
+PanDaF çalışırken masaüstünde veya bir klasörde bir ya da birkaç dosyayı seçip **sürüklemeye başlayın ve Shift'e basın**. İmlecin altında PanDaF paneli açılır; dosyaları bir dilimin üzerine bırakın:
 
-- **Tek PDF:** Sayfaları düzenle · Böl · Word'e çevir · Resme çevir
-- **Birden fazla PDF:** Birleştir · Word'e çevir · Resme çevir
-- **Word, PowerPoint, Excel, fotoğraf:** PDF yap · PanDaF'ta aç
+| Sürüklediğiniz | Paneldeki seçenekler |
+| --- | --- |
+| Tek PDF | Sayfaları düzenle · Böl · **Word'e çevir** · **Resme çevir** |
+| Birden fazla PDF | Birleştir · **Word'e çevir** · **Resme çevir** |
+| Tek resim veya Word/PowerPoint/Excel | **PDF yap** · PanDaF'ta aç |
+| Birden fazla resim | **Tek PDF yap** · **Ayrı PDF'ler** · PanDaF'ta aç |
 
-Vazgeçmek için dosyaları panelin ortasına bırakın veya paneli boş bir yere sürükleyip bırakın. Panel, sağ üstteki **Shift paneli** kutusuyla açılıp kapatılabilir.
+**Kalın** seçenekler pencere açmadan ve soru sormadan çalışır: sonuç, asıl dosyanın bulunduğu klasöre aynı adla kaydedilir (ör. `Ödev.jpg` → `Ödev.pdf`). Ekranın sağ altında küçük bir bildirim çıkar; oradan dosyayı açabilir veya klasörde gösterebilirsiniz. Diğer seçenekler ilgili aracı dosyalar yüklenmiş olarak açar.
+
+Vazgeçmek için dosyaları panelin ortasına ya da boş bir yere bırakın.
+
+> Dosya bir klasörde değilse (tarayıcının indirilenler listesi, e-posta eki, ZIP içi, yalnızca çevrim içi OneDrive dosyası) Windows dosyanın yerini vermez; panel bunu söyler. Önce dosyayı masaüstüne kaydedip oradan sürükleyin.
+
+### Arka planda çalışma ve otomatik başlatma
+
+- PanDaF, **bilgisayar açılınca** kendiliğinden ve pencere açmadan başlar; saatin yanında panda simgesi görünür. Böylece Shift paneli her zaman hazırdır. Yönetici izni gerekmez.
+- Pencereyi kapatmak PanDaF'ı kapatmaz; simgeye dönüşür. Tamamen kapatmak için simgeye sağ tıklayıp **PanDaF'tan çık**'ı seçin.
+- Bunlar **Ayarlar** düğmesinden (veya simgeye sağ tıklayarak) açılıp kapatılabilir: *Shift paneli*, *Bilgisayar açılınca başlat*.
 
 Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakırsanız sayfa düzenleyici, birden fazla PDF bırakırsanız birleştirme, Word veya fotoğraf bırakırsanız PDF'ye çevirme açılır.
 
@@ -49,7 +62,7 @@ Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakır
 
 ## Sorun mu var?
 
-Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt` dosyasına yazılır. Sorun bildirirken bu dosyayı eklemeniz çözümü kolaylaştırır.
+Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt`, Shift panelinin adımları `%LOCALAPPDATA%\PanDaF\panel-gunlugu.txt` dosyasına yazılır. Sorun bildirirken bu dosyayı eklemeniz çözümü kolaylaştırır.
 
 ---
 

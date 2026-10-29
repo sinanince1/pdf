@@ -6,8 +6,9 @@
 
 İlk açılışta Windows "Windows bilgisayarınızı korudu" uyarısı verebilir. **Ek bilgi** → **Yine de çalıştır** seçin. (Uygulama ücretli bir kod imzası taşımadığı için bu uyarı çıkar.)
 
-### Yeni: Shift paneli
-PanDaF açıkken masaüstünde dosyaları sürüklerken **Shift**'e basın; imlecin altında açılan panelden birleştir, böl, sayfaları düzenle, Word'e/resme çevir veya PDF yap seçeneğine bırakın.
+### Yeni
+- **Shift paneli:** Dosyaları sürüklerken Shift'e basın; açılan panelden seçin. PDF yap, Word'e çevir ve Resme çevir pencere açmadan, soru sormadan dosyanın yanına kaydeder.
+- **Bilgisayar açılınca başlar** ve saatin yanında (sistem tepsisinde) bekler. Ayarlar'dan kapatılabilir.
 
 ### Araçlar
 - PDF birleştir

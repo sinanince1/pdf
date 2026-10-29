@@ -8,6 +8,12 @@ public sealed class Settings
     /// Dosya sürüklerken Shift'e basınca PanDaF paneli açılsın mı?
     public bool ShiftPanel { get; set; } = true;
 
+    /// Windows açılınca PanDaF arka planda (sistem tepsisinde) başlasın mı?
+    public bool StartWithWindows { get; set; } = true;
+
+    /// "Pencereyi kapatınca arka planda çalışmaya devam ediyor" bilgisi bir kez gösterildi mi?
+    public bool TrayHintShown { get; set; }
+
     private static string File => Path.Combine(App.DataFolder, "ayarlar.json");
 
     public static Settings Load()
