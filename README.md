@@ -49,7 +49,7 @@ Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt` dosyasına yazılı
 - **Derleme:** `dotnet publish src/PanDaF/PanDaF.csproj -c Release -o build/app` → tek dosya `PanDaF.exe` (.NET kurulumu gerekmez).
 - **Testler:** `dotnet run --project tests/PanDaF.Tests -c Release`. `PANDAF_LIBREOFFICE=1` ile LibreOffice gerçekten indirilir ve Office dönüşümleri de denenir.
 - **Arayüz testi:** `PanDaF.exe --smoke <klasör>` tüm araçları gerçek pencerede, gerçek dosyalarla çalıştırır ve ekran görüntüleri alır.
-- **Otomatik derleme:** Her `main` gönderiminde GitHub Actions Windows'ta testleri ve arayüz testini çalıştırır. Yeni sürüm için `v1.0.1` gibi bir etiket (tag) gönderin; `.exe` ve `.zip` otomatik olarak Releases sayfasına eklenir.
+- **Otomatik derleme:** Her `main` gönderiminde GitHub Actions Windows'ta testleri ve arayüz testini çalıştırır. Yeni sürüm için GitHub'da **Releases → Draft a new release** ile `v1.0.1` gibi bir sürüm yayınlayın; `.exe` ve `.zip` derlenip sürüme otomatik eklenir.
 
 ## Teşekkür ve lisans
 
