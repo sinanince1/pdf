@@ -108,7 +108,22 @@ jobs:
             ${{ runner.temp }}/smoke/rapor.txt
           if-no-files-found: warn
 
-      # Yeni sürüm: GitHub'da "Releases > Draft a new release" ile v1.0.1 gibi bir sürüm yayınlayın
+      # Otomatik sürüm: main'e gönderilen kodda src/PanDaF/PanDaF.csproj içindeki <Version> yeni bir
+      # numaraysa (ör. 1.2.0 → v1.2.0 henüz yoksa) sürüm otomatik yayınlanır ve dosyalar eklenir.
+      - name: Yeni sürüm numarasıysa otomatik yayınla
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = ([xml](Get-Content src/PanDaF/PanDaF.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          $tag = "v$version"
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { Write-Host "$tag zaten yayınlanmış; yeni sürüm yok."; exit 0 }
+          gh release create $tag dist/PanDaF.exe dist/PanDaF.zip --target $env:GITHUB_SHA --title "PanDaF $tag" --notes-file docs/surum-notlari.md
+          Write-Host "::notice title=Sürüm yayınlandı::$tag"
+
+      # Elle sürüm: GitHub'da "Releases > Draft a new release" ile v1.0.1 gibi bir sürüm yayınlayın
       # (veya v* etiketi gönderin). Dosyalar derlenip sürüme otomatik eklenir.
       - name: Sürüme dosyaları ekle
         if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
