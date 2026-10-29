@@ -118,7 +118,7 @@ public sealed class GlobalDragWatcher : IDisposable
 /// böylece Shift'le yapılan sıradan seçimlerde (metin seçme gibi) ortaya çıkmaz.
 public sealed class PandaWheel : Window
 {
-    public const double Diameter = 340;
+    public const double Diameter = 380;
     private const double Inner = 108, Outer = 250, Center = 270;
     // Tamamen saydam pencere fareyi algılamaz; çok küçük bir opaklıkla başlar.
     private const double HiddenOpacity = .02;
@@ -245,18 +245,18 @@ public sealed class PandaWheel : Window
             geometry.Freeze();
             canvas.Children.Add(new ShapePath { Data = geometry, Fill = Res("Card"), Stroke = Res("Line"), StrokeThickness = 2 });
 
-            var label = new StackPanel { Width = 124, IsHitTestVisible = false };
+            var label = new StackPanel { Width = 116, IsHitTestVisible = false };
             label.Children.Add(new TextBlock { Text = choices[i].Glyph, FontFamily = (FontFamily)Application.Current.Resources["IconFont"], FontSize = 30, Foreground = Res("Primary"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) });
-            label.Children.Add(new TextBlock { Text = choices[i].Title, FontFamily = new FontFamily("Segoe UI"), FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Res("Ink"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
-            label.Measure(new Size(124, double.PositiveInfinity));
-            var radius = count == 1 ? 0 : (Inner + Outer) / 2;
+            label.Children.Add(new TextBlock { Text = choices[i].Title, FontFamily = new FontFamily("Segoe UI"), FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = Res("Ink"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+            label.Measure(new Size(116, double.PositiveInfinity));
+            var radius = count == 2 ? 172 : (Inner + Outer) / 2;
             var position = count == 1 ? new Point(Center, Center - (Inner + Outer) / 2) : P(radius, angle);
-            Canvas.SetLeft(label, position.X - 62); Canvas.SetTop(label, position.Y - label.DesiredSize.Height / 2);
+            Canvas.SetLeft(label, position.X - 58); Canvas.SetTop(label, position.Y - label.DesiredSize.Height / 2);
             canvas.Children.Add(label);
         }
         var middle = new StackPanel { Width = 190, IsHitTestVisible = false };
         middle.Children.Add(new Image { Source = Logo, Width = 92, Height = 92, Margin = new Thickness(0, 0, 0, 6) });
-        centerText = new TextBlock { Text = count == 0 ? "PanDaF" : "Bir dilime bırakın", FontFamily = new FontFamily("Segoe UI"), FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Res("Ink"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap };
+        centerText = new TextBlock { Text = count == 0 ? "PanDaF" : "Bir dilime bırakın", FontFamily = new FontFamily("Segoe UI"), FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Res("Ink"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap };
         middle.Children.Add(centerText);
         middle.Measure(new Size(190, double.PositiveInfinity));
         Canvas.SetLeft(middle, Center - 95); Canvas.SetTop(middle, Center - middle.DesiredSize.Height / 2);
