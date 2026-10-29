@@ -1,0 +1,84 @@
+<UserControl x:Class="PanDaF.Views.FromPdfView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="40,28,40,24" MaxWidth="980">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Style="{StaticResource Title}" Text="PDF'den çevir"/>
+      <TextBlock Style="{StaticResource Subtitle}" Text="PDF'leri ekleyin ve neye dönüştürmek istediğinizi seçin."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="330"/>
+      </Grid.ColumnDefinitions>
+
+      <Grid>
+        <ContentControl x:Name="DropHost" Focusable="False"/>
+        <DockPanel x:Name="ListPanel" Visibility="Collapsed">
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Click="AddMore_Click">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="13" Margin="0,0,8,0"/>
+                <TextBlock Text="PDF ekle"/>
+              </StackPanel>
+            </Button>
+            <TextBlock Style="{StaticResource Section}" Text="Seçilen PDF'ler" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="ListHost" Focusable="False"/>
+          </ScrollViewer>
+        </DockPanel>
+      </Grid>
+
+      <ScrollViewer Grid.Column="1" Margin="20,0,0,0" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Section}" Text="Neye dönüştürülsün?"/>
+          <RadioButton x:Name="ToWord" Style="{StaticResource OptionCard}" GroupName="Target" IsChecked="True" Checked="Target_Changed">
+            <StackPanel>
+              <TextBlock Text="Word belgesi (.docx)" FontWeight="SemiBold"/>
+              <TextBlock Text="Metni düzenleyebilirsiniz. Karmaşık sayfalarda düzen biraz değişebilir." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="ToJpg" Style="{StaticResource OptionCard}" GroupName="Target" Checked="Target_Changed">
+            <StackPanel>
+              <TextBlock Text="Resim (JPG)" FontWeight="SemiBold"/>
+              <TextBlock Text="Her sayfa bir resim olur. Sunuya, panoya veya mesaja eklemek için." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="ToPng" Style="{StaticResource OptionCard}" GroupName="Target" Checked="Target_Changed">
+            <StackPanel>
+              <TextBlock Text="Resim (PNG)" FontWeight="SemiBold"/>
+              <TextBlock Text="JPG'den daha net; dosyalar daha büyük olur." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="ToText" Style="{StaticResource OptionCard}" GroupName="Target" Checked="Target_Changed">
+            <StackPanel>
+              <TextBlock Text="Düz metin (.txt)" FontWeight="SemiBold"/>
+              <TextBlock Text="Yalnızca yazılar. Taranmış sayfalardaki yazı da okunmaya çalışılır." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </RadioButton>
+          <StackPanel x:Name="QualityPanel" Visibility="Collapsed" Margin="0,4,0,0">
+            <TextBlock Text="Resim kalitesi" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,0,0,4"/>
+            <ComboBox x:Name="Quality" SelectedIndex="0">
+              <ComboBoxItem Content="Normal (150 DPI)"/>
+              <ComboBoxItem Content="Yüksek (300 DPI, yazdırma için)"/>
+            </ComboBox>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button x:Name="Go" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Dönüştür" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock x:Name="Summary" VerticalAlignment="Center" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Text="Dönüştürmek için PDF ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

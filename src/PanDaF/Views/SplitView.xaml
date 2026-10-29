@@ -1,0 +1,65 @@
+<UserControl x:Class="PanDaF.Views.SplitView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="40,28,40,24" MaxWidth="920">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Style="{StaticResource Title}" Text="PDF böl"/>
+      <TextBlock Style="{StaticResource Subtitle}" Text="Bir PDF seçin, nasıl bölmek istediğinizi işaretleyin."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl x:Name="DropHost" Focusable="False"/>
+      <ScrollViewer x:Name="OptionsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <Border Style="{StaticResource CardBorder}" Padding="16,12" Margin="0,0,0,20">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Content="Başka PDF seç" Click="Change_Click"/>
+              <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8A5;" FontSize="22" Foreground="{StaticResource Primary}" Margin="0,0,14,0"/>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="FileName" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="FileDetails" FontSize="13" Foreground="{StaticResource Muted}"/>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+
+          <TextBlock Style="{StaticResource Section}" Text="Nasıl bölünsün?"/>
+          <RadioButton x:Name="EachPage" Style="{StaticResource OptionCard}" GroupName="Mode" IsChecked="True" Checked="Mode_Changed">
+            <StackPanel>
+              <TextBlock Text="Her sayfayı ayrı PDF yap" FontWeight="SemiBold"/>
+              <TextBlock Text="Örnek: 10 sayfalık PDF'den 10 ayrı dosya oluşur." FontSize="13" Foreground="{StaticResource Muted}"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="EveryN" Style="{StaticResource OptionCard}" GroupName="Mode" Checked="Mode_Changed">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Her" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBox x:Name="PagesPerFile" Width="64" Margin="10,0" Text="2" HorizontalContentAlignment="Center" GotKeyboardFocus="PagesPerFile_Focus"/>
+                <TextBlock Text="sayfada bir böl" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              </StackPanel>
+              <TextBlock Text="Örnek: Her öğrencinin 2 sayfalık çalışmasını ayrı dosya yapmak için." FontSize="13" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="Extract" Style="{StaticResource OptionCard}" GroupName="Mode" Checked="Mode_Changed">
+            <StackPanel>
+              <TextBlock Text="Yalnızca şu sayfaları al" FontWeight="SemiBold"/>
+              <TextBox x:Name="Ranges" Width="260" HorizontalAlignment="Left" Margin="0,8,0,0" GotKeyboardFocus="Ranges_Focus"/>
+              <TextBlock Text="Yazım örneği: 1-3, 5, 8  →  1, 2, 3, 5 ve 8. sayfalar tek PDF olur." FontSize="13" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
+            </StackPanel>
+          </RadioButton>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button x:Name="Go" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Böl" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock x:Name="Summary" VerticalAlignment="Center" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Text="Bölmek için bir PDF seçin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

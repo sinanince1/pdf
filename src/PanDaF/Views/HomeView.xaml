@@ -1,0 +1,67 @@
+<UserControl x:Class="PanDaF.Views.HomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Grid x:Name="Root" Margin="40,32,40,32" MaxWidth="1040">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Title}" Text="Ne yapmak istiyorsunuz?"/>
+        <TextBlock Style="{StaticResource Subtitle}" Text="Bir araç seçin ya da dosyalarınızı doğrudan bu pencereye sürükleyin."/>
+
+        <UniformGrid x:Name="Tiles" Columns="3" Margin="-8,22,-8,0">
+          <Button x:Name="MergeTile" Style="{StaticResource TileButton}" Click="Merge_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="PDF birleştir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="Birden fazla PDF'yi istediğiniz sırayla tek dosyada toplayın." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="SplitTile" Style="{StaticResource TileButton}" Click="Split_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE8C6;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="PDF böl" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="Bir PDF'yi parçalara ayırın veya yalnızca istediğiniz sayfaları alın." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="OrganizeTile" Style="{StaticResource TileButton}" Click="Organize_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="Sayfaları düzenle" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="Sayfaları silin, sürükleyerek sıralayın veya döndürün." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="ToPdfTile" Style="{StaticResource TileButton}" Click="ToPdf_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="PDF'ye çevir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="Word, PowerPoint, Excel dosyalarını veya fotoğrafları PDF yapın." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="FromPdfTile" Style="{StaticResource TileButton}" Click="FromPdf_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE91B;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="PDF'den çevir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="PDF'yi Word belgesine, resme (JPG/PNG) veya metne dönüştürün." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
+        </UniformGrid>
+
+        <Border Margin="0,26,0,0" Padding="16,12" CornerRadius="12" Background="{StaticResource SuccessSoft}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE72E;" FontSize="18" Foreground="{StaticResource Success}" Margin="0,0,12,0"/>
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Ink}" Text="Dosyalarınız internete yüklenmez, her şey bu bilgisayarda yapılır. Asıl dosyalarınız hiç değiştirilmez; sonuçlar yeni bir dosya olarak kaydedilir."/>
+          </DockPanel>
+        </Border>
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

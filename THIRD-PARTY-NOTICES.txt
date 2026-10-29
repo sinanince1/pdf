@@ -1,0 +1,26 @@
+PanDaF — Üçüncü taraf bileşenler / Third-party notices
+
+PanDaF's own source is MIT licensed (see LICENSE). It is derived in part from
+Nashi by Orkun Işıtmak and Nashi contributors (MIT):
+https://github.com/orkunisitmak/nashi-app
+Adapted parts: PDF page engine (merge/split/reorder, form-field safety check),
+PDFium rendering and form preview, LibreOffice runtime setup (verified MSI
+extraction), PDF-to-HTML/text extraction, export transactions and safe paths.
+
+Bundled libraries (full license texts in the licenses/ folder):
+
+- PDFsharp 6.2.4 — empira Software GmbH and contributors — MIT
+  https://github.com/empira/PDFsharp — licenses/PDFsharp-MIT.txt
+- PdfPig 0.1.16 — Eliot Jones and contributors — Apache-2.0
+  https://github.com/UglyToad/PdfPig — licenses/PdfPig-Apache-2.0.txt
+- PDFium (via bblanchon.PDFium.Win32 155.0.8044) — BSD-style / Apache-2.0 packaging
+  https://pdfium.googlesource.com/pdfium/ — licenses/PDFium-THIRD-PARTY-NOTICES.txt
+- .NET runtime and WPF — Microsoft and .NET Foundation — MIT
+  licenses/dotnet-MIT.txt, licenses/WPF-MIT.txt, licenses/dotnet-THIRD-PARTY-NOTICES.txt
+
+Not bundled:
+
+- LibreOffice (MPL-2.0 and others) is downloaded on first use only on computers
+  without Microsoft Office, directly from The Document Foundation, and verified
+  with a pinned SHA-256 checksum. It is stored in %LOCALAPPDATA%\PanDaF\araclar.
+- Microsoft Office, when installed, is used through its own automation interface.

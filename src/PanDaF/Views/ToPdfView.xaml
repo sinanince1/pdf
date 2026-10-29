@@ -1,0 +1,64 @@
+<UserControl x:Class="PanDaF.Views.ToPdfView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="40,28,40,24" MaxWidth="920">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Style="{StaticResource Title}" Text="PDF'ye çevir"/>
+      <TextBlock Style="{StaticResource Subtitle}" Text="Word, PowerPoint ve Excel dosyalarını veya fotoğrafları ekleyin. Her belge kendi adıyla PDF olarak kaydedilir."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl x:Name="DropHost" Focusable="False"/>
+      <Grid x:Name="ListPanel" Visibility="Collapsed">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Click="AddMore_Click">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="13" Margin="0,0,8,0"/>
+                <TextBlock Text="Dosya ekle"/>
+              </StackPanel>
+            </Button>
+            <TextBlock Style="{StaticResource Section}" Text="Seçilen dosyalar" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="ListHost" Focusable="False"/>
+          </ScrollViewer>
+        </DockPanel>
+
+        <!-- Resim seçenekleri -->
+        <Border x:Name="ImageOptions" Grid.Column="1" Width="290" Margin="20,48,0,0" VerticalAlignment="Top" Style="{StaticResource CardBorder}" Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Style="{StaticResource Section}" Text="Resimler için"/>
+            <CheckBox x:Name="Combine" IsChecked="True" Checked="Options_Changed" Unchecked="Options_Changed">
+              <TextBlock Text="Hepsini tek PDF'de birleştir" TextWrapping="Wrap"/>
+            </CheckBox>
+            <StackPanel x:Name="NamePanel" Margin="26,0,0,12">
+              <TextBlock Text="PDF'nin adı" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,0,0,4"/>
+              <TextBox x:Name="CombinedName" Text="Resimler"/>
+            </StackPanel>
+            <CheckBox x:Name="FitA4" IsChecked="True">
+              <TextBlock Text="A4 sayfaya yerleştir (yazdırmaya uygun)" TextWrapping="Wrap"/>
+            </CheckBox>
+            <TextBlock Text="Sıra önemliyse okları kullanın: listedeki ilk resim ilk sayfa olur." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button x:Name="Go" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="PDF'ye çevir" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock x:Name="Summary" VerticalAlignment="Center" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Text="Çevirmek için dosya ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

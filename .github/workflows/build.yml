@@ -1,0 +1,85 @@
+name: Windows derlemesi
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Motor testleri (LibreOffice indirme ve Office dönüşümleri dahil)
+        shell: pwsh
+        env:
+          PANDAF_LIBREOFFICE: '1'
+        run: |
+          dotnet run --project tests/PanDaF.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Uygulamayı tek dosya olarak derle
+        shell: pwsh
+        run: |
+          dotnet publish src/PanDaF/PanDaF.csproj -c Release -o build/app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem build/app | Format-Table Name, Length
+
+      - name: Arayüz duman testi (gerçek pencere, gerçek dosyalar)
+        shell: pwsh
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP 'smoke'
+          $process = Start-Process -FilePath (Resolve-Path 'build/app/PanDaF.exe') -ArgumentList '--smoke', "`"$smoke`"" -PassThru
+          if (-not $process.WaitForExit(600000)) { $process.Kill($true); Write-Host 'Duman testi 10 dakikayı aştı'; exit 1 }
+          if (Test-Path "$smoke/rapor.txt") { Get-Content "$smoke/rapor.txt" } else { Write-Host 'Rapor oluşmadı' }
+          $log = Join-Path $env:LOCALAPPDATA 'PanDaF/hata-gunlugu.txt'
+          if (Test-Path $log) { Write-Host '--- hata günlüğü ---'; Get-Content $log }
+          if ($process.ExitCode -ne 0) { Write-Host "Çıkış kodu: $($process.ExitCode)"; exit 1 }
+
+      - name: Paketle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/app/PanDaF.exe dist/PanDaF.exe
+          $zip = Join-Path $env:RUNNER_TEMP 'zip'
+          New-Item -ItemType Directory -Force $zip | Out-Null
+          Copy-Item build/app/PanDaF.exe "$zip/PanDaF.exe"
+          Copy-Item LICENSE "$zip/LICENSE.txt"
+          Copy-Item THIRD-PARTY-NOTICES.txt "$zip/"
+          Copy-Item licenses "$zip/licenses" -Recurse
+          Compress-Archive -Path "$zip/*" -DestinationPath dist/PanDaF.zip -Force
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Derleme çıktısını sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanDaF-${{ github.sha }}
+          path: |
+            dist/
+            ${{ runner.temp }}/smoke/ekran/
+            ${{ runner.temp }}/smoke/rapor.txt
+          if-no-files-found: warn
+
+      - name: Sürümü yayınla
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" dist/PanDaF.exe dist/PanDaF.zip --title "PanDaF $env:GITHUB_REF_NAME" --notes-file docs/surum-notlari.md

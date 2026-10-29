@@ -1,0 +1,40 @@
+<UserControl x:Class="PanDaF.Views.MergeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="40,28,40,24" MaxWidth="920">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Style="{StaticResource Title}" Text="PDF birleştir"/>
+      <TextBlock Style="{StaticResource Subtitle}" Text="PDF'leri ekleyin, okları kullanarak sıralayın. Listede en üstteki dosya, yeni PDF'nin başında olur."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl x:Name="DropHost" Focusable="False"/>
+      <DockPanel x:Name="ListPanel" Visibility="Collapsed">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+          <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Click="AddMore_Click">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="13" Margin="0,0,8,0"/>
+              <TextBlock Text="PDF ekle"/>
+            </StackPanel>
+          </Button>
+          <TextBlock Style="{StaticResource Section}" Text="Seçilen PDF'ler" VerticalAlignment="Center" Margin="0"/>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ContentControl x:Name="ListHost" Focusable="False"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button x:Name="Go" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Birleştir" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock x:Name="Summary" VerticalAlignment="Center" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Text="Birleştirmek için en az iki PDF ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>
