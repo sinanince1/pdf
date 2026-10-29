@@ -16,10 +16,17 @@ public partial class MainWindow : Window
     public List<string> SmokeErrors { get; } = [];
     public IReadOnlyList<string> LastOutputs => lastOutputs;
 
+    private readonly Settings settings = Settings.Load();
+    private GlobalDragWatcher? watcher;
+
     public MainWindow()
     {
         InitializeComponent();
+        ShiftPanelToggle.IsChecked = settings.ShiftPanel;
         GoHome();
+        // Shift paneli: program açıkken (simge durumunda bile) dosya sürüklemelerini izler.
+        SourceInitialized += (_, _) => watcher = new GlobalDragWatcher(this, () => settings.ShiftPanel && !App.SmokeMode);
+        Closed += (_, _) => watcher?.Dispose();
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key != Key.Escape) return;
@@ -170,6 +177,39 @@ public partial class MainWindow : Window
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => GoHome();
+
+    private void ShiftPanel_Changed(object sender, RoutedEventArgs e)
+    {
+        settings.ShiftPanel = ShiftPanelToggle.IsChecked == true;
+        settings.Save();
+    }
+
+    /// Shift panelinde bir dilime bırakılan dosyalar.
+    public void QuickAction(string id, IReadOnlyList<string> files)
+    {
+        if (files.Count == 0) return;
+        BringToFront();
+        if (IsBusy) { Info("Önceki işlem bitmeden yeni işlem başlatılamaz. Lütfen bekleyin."); return; }
+        CloseResult();
+        switch (id)
+        {
+            case "merge": { var view = new MergeView(this); Navigate(view, "PDF birleştir"); view.Add(files); break; }
+            case "split": { var view = new SplitView(this); Navigate(view, "PDF böl"); view.Load(files[0]); break; }
+            case "organize": { var view = new OrganizeView(this); Navigate(view, "Sayfaları düzenle"); view.Load(files[0]); break; }
+            case "word": { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Word); break; }
+            case "jpg": { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Jpg); break; }
+            case "topdf": { var view = new ToPdfView(this); Navigate(view, "PDF'ye çevir"); view.Start(files); break; }
+            default: OpenFiles(files); break;
+        }
+    }
+
+    private void BringToFront()
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Show();
+        // Windows başka programın önüne geçmeyi kısıtlar; kısa süre "en üstte" yapmak işe yarar.
+        Topmost = true; Activate(); Topmost = false; Focus();
+    }
 
     private void About_Click(object sender, RoutedEventArgs e)
     {

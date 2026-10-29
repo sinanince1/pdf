@@ -86,4 +86,12 @@ public partial class ToPdfView : UserControl
         Update();
         shell.ShowResult(result, result.Count == 1 ? "PDF hazır." : $"{result.Count} PDF hazır.");
     }
+
+    /// Shift panelinden gelen dosyalar için: listeyi doldurur ve hemen çevirmeye başlar.
+    internal void Start(IReadOnlyList<string> files)
+    {
+        list.Clear();
+        Add(files);
+        if (list.Files.Count > 0) Go_Click(this, new RoutedEventArgs());
+    }
 }

@@ -14,6 +14,16 @@
 | **PDF'ye çevir** | Word, PowerPoint, Excel dosyalarını ve fotoğrafları PDF yapar. Fotoğraflar A4'e yerleştirilebilir, tek PDF'de birleştirilebilir. |
 | **PDF'den çevir** | PDF'yi Word belgesine, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
 
+### Shift paneli (en hızlı yol)
+
+PanDaF açıkken (simge durumuna küçültülmüş olsa bile) masaüstünde veya bir klasörde bir ya da birkaç dosyayı seçip **sürüklemeye başlayın ve Shift'e basın**. İmlecin altında PanDaF paneli açılır; dosyaları bir dilimin üzerine bırakın:
+
+- **Tek PDF:** Sayfaları düzenle · Böl · Word'e çevir · Resme çevir
+- **Birden fazla PDF:** Birleştir · Word'e çevir · Resme çevir
+- **Word, PowerPoint, Excel, fotoğraf:** PDF yap · PanDaF'ta aç
+
+Vazgeçmek için dosyaları panelin ortasına bırakın veya paneli boş bir yere sürükleyip bırakın. Panel, sağ üstteki **Shift paneli** kutusuyla açılıp kapatılabilir.
+
 Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakırsanız sayfa düzenleyici, birden fazla PDF bırakırsanız birleştirme, Word veya fotoğraf bırakırsanız PDF'ye çevirme açılır.
 
 ## Kurulum

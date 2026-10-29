@@ -14,6 +14,10 @@
     <!-- Üst çubuk -->
     <Border Grid.Row="0" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="20,10">
       <DockPanel LastChildFill="True">
+        <CheckBox x:Name="ShiftPanelToggle" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,18,0" Checked="ShiftPanel_Changed" Unchecked="ShiftPanel_Changed"
+                  ToolTip="Açıkken: masaüstünde veya bir klasörde dosyaları sürüklerken Shift'e basın; imlecin altında PanDaF paneli açılır. Dosyayı bir dilime bırakın.">
+          <TextBlock Text="Shift paneli"/>
+        </CheckBox>
         <Button x:Name="AboutButton" DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Click="About_Click" ToolTip="Uygulama hakkında">
           <StackPanel Orientation="Horizontal">
             <TextBlock Style="{StaticResource Icon}" Text="&#xE946;" FontSize="15" Margin="0,0,8,0"/>

@@ -12,7 +12,7 @@
     <Product>PanDaF</Product>
     <Company>Sinan İnce</Company>
     <Copyright>Sinan İnce 2026 · Nashi PDF motoru © Orkun Işıtmak (MIT)</Copyright>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <ApplicationIcon>Assets\PanDaF.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

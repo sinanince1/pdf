@@ -85,6 +85,31 @@ internal static class SmokeTest
             var pictures = await Result(window);
             Check(Directory.Exists(pictures[0]) && Directory.GetFiles(pictures[0], "*.jpg").Length == 3, "PDF sayfaları JPG oldu (3 resim)");
 
+            // Shift paneli: seçenekler ve görünüm
+            Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["organize", "split", "word", "jpg"]), "Tek PDF için panel seçenekleri");
+            Check(PandaWheel.For([threePages, copy]).Select(c => c.Id).SequenceEqual(["merge", "word", "jpg"]), "Birden fazla PDF için panel seçenekleri");
+            Check(PandaWheel.For(images).First().Id == "topdf", "Resimler için panel: PDF yap");
+            var panels = new List<(IReadOnlyList<string> Sample, string Name, int Index)>
+            {
+                (new[] { threePages }, "11-panel-tek-pdf.png", 1),
+                (new[] { threePages, copy }, "12-panel-cok-pdf.png", 0),
+                (images, "13-panel-resimler.png", 0),
+            };
+            foreach (var (sample, name, index) in panels)
+            {
+                var wheel = new PandaWheel((_, _) => { });
+                wheel.Preview(sample, index);
+                wheel.Show();
+                await Settle();
+                Capture(wheel, Path.Combine(shots, name));
+                wheel.Close();
+            }
+
+            // Panelden hızlı işlem: PDF'yi doğrudan resme çevir
+            window.QuickAction("jpg", [threePages]);
+            var quick = await Result(window);
+            Check(Directory.Exists(quick[0]) && Directory.GetFiles(quick[0], "*.jpg").Length == 3, "Panelden hızlı işlem (resme çevir)");
+
             window.GoHome(); await Settle();
             Check(window.SmokeErrors.Count == 0, "Arayüz hata göstermedi" + (window.SmokeErrors.Count > 0 ? ": " + string.Join(" | ", window.SmokeErrors) : ""));
             log.Add("SONUÇ: BAŞARILI");

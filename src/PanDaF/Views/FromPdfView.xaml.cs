@@ -83,4 +83,13 @@ public partial class FromPdfView : UserControl
             _ => "Resimler hazır.",
         });
     }
+
+    /// Shift panelinden gelen PDF'ler için: hedefi seçer ve hemen dönüştürmeye başlar.
+    internal void Start(IReadOnlyList<string> files, PdfTarget target)
+    {
+        (target switch { PdfTarget.Jpg => ToJpg, PdfTarget.Png => ToPng, PdfTarget.Text => ToText, _ => ToWord }).IsChecked = true;
+        list.Clear();
+        Add(files);
+        if (list.Files.Count > 0) Go_Click(this, new RoutedEventArgs());
+    }
 }
