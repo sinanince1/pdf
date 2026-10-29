@@ -4,7 +4,7 @@ namespace PanDaF;
 
 /// Windows açılınca başlatma: HKCU\...\Run altına kayıt. Yalnızca bu kullanıcıyı etkiler,
 /// yönetici izni istemez. Uygulama her açılışta yolu tazeler (exe taşınmışsa kayıt düzelir).
-public static class Startup
+public static class AutoStart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string Name = "PanDaF";

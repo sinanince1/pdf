@@ -201,7 +201,7 @@ public partial class MainWindow : Window
 
     public void SetShiftPanel(bool on) { settings.ShiftPanel = on; settings.Save(); }
 
-    public void SetStartup(bool on) { settings.StartWithWindows = on; settings.Save(); Startup.Apply(on); }
+    public void SetStartup(bool on) { settings.StartWithWindows = on; settings.Save(); AutoStart.Apply(on); }
 
     public void ExitApp()
     {

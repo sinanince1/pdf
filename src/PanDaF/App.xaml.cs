@@ -23,7 +23,7 @@ public partial class App : Application
             MessageBox.Show("Beklenmeyen bir sorun oluştu:\n\n" + args.Exception.Message, "PanDaF", MessageBoxButton.OK, MessageBoxImage.Error);
         };
         var files = e.Args.Where(File.Exists).ToArray();
-        var background = e.Args.Contains(Startup.BackgroundArgument);
+        var background = e.Args.Contains(AutoStart.BackgroundArgument);
 
         // Tek kopya: PanDaF zaten çalışıyorsa (ör. tepside) onu öne getir ve bu kopyayı kapat.
         if (!SmokeMode)
@@ -54,7 +54,7 @@ public partial class App : Application
 
         window.InstallTray();
         // Her açılışta kayıt tazelenir: exe başka bir klasöre taşındıysa otomatik başlatma yine çalışır.
-        Startup.Apply(window.Settings.StartWithWindows);
+        AutoStart.Apply(window.Settings.StartWithWindows);
         ListenForSecondInstance(window);
         // Windows açılışında (--arkaplan) pencere gösterilmez; PanDaF tepside bekler.
         if (!background) window.Show();
