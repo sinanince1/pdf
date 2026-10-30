@@ -8,7 +8,13 @@ namespace PanDaF.Core;
 public sealed record TextLine(string Text, double X, double Y, double Width, double Height, double FontSize, bool Bold,
     double RegionLeft, double RegionBottom, double RegionRight, double RegionTop, string FontName = "");
 
-public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont);
+public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont, double? ShrunkToFontSize = null);
+
+/// Sayfadaki bir paragraf (motorun bulduğu aday). Konum UI için sol üstten, nokta cinsinden.
+public sealed record Paragraph(string Text, double X, double Y, double Width, double Height, string FontName, double FontSize, double Leading,
+    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop);
+
+public sealed record ReplaceAllResult(byte[] Document, int ReplacedLines, int FailedLines, int PagesWithMatches);
 
 /// Var olan yazıyı sayfa içeriğinde yerinde değiştirir (KillerPdf.Engine). Eski harfler aynı metin
 /// nesnesinden çıkar, yenileri aynı yazı tipi, boyut ve renkle yerine yazılır; üstüne kapatma konmaz.
@@ -192,4 +198,69 @@ public static class TextRewriter
     }
 
     private static PdfContentBounds Region(TextLine line) => new(line.RegionLeft, line.RegionBottom, line.RegionRight, line.RegionTop);
+
+    // ----- Paragraf düzenleme -----
+
+    public static List<Paragraph> Paragraphs(byte[] document, int pageIndex, double pageHeight)
+    {
+        try
+        {
+            var candidates = PdfParagraphEditor.FindParagraphs(KillerPdf.Engine.Documents.PdfDocument.Open(document), pageIndex);
+            return candidates.Select(c => new Paragraph(c.Text, c.SourceRegion.Left, pageHeight - c.SourceRegion.Top, c.SourceRegion.Right - c.SourceRegion.Left, c.SourceRegion.Top - c.SourceRegion.Bottom,
+                c.FontName, c.FontSize, c.Leading, c.SourceRegion.Left, c.SourceRegion.Bottom, c.SourceRegion.Right, c.SourceRegion.Top)).ToList();
+        }
+        catch (Exception error) when (error is FormatException or InvalidOperationException or NotSupportedException or ArgumentException or IOException) { return []; }
+    }
+
+    /// Paragrafı yeni metinle, aynı kutuda yeniden akıtır. Sığmazsa yazı boyutunu kademeli küçültür (en çok %30).
+    public static RewriteResult ReplaceParagraph(byte[] document, int pageIndex, Paragraph paragraph, string newText)
+    {
+        var (family, bold, italic) = Parse(paragraph.FontName, false);
+        var font = SubstituteFor(paragraph.FontName, bold);
+        var region = new PdfContentBounds(paragraph.RegionLeft, paragraph.RegionBottom, paragraph.RegionRight, paragraph.RegionTop);
+        var leadingRatio = paragraph.FontSize > 0 ? paragraph.Leading / paragraph.FontSize : 1.2;
+        string? overflow = null;
+        try
+        {
+            for (var scale = 1.0; scale >= 0.69; scale -= 0.05)
+            {
+                var size = paragraph.FontSize * scale;
+                var pdf = KillerPdf.Engine.Documents.PdfDocument.Open(document);
+                var plan = PdfParagraphEditor.Plan(pdf, pageIndex, region, region, newText, font, size, Math.Max(size * leadingRatio, size * 1.05), PdfParagraphAlignment.Left);
+                if (plan.HasOverflow) { overflow = plan.OverflowReason; continue; }
+                return new RewriteResult(PdfParagraphEditor.Apply(pdf, plan), true, scale < 1 ? size : null);
+            }
+            throw new UserFacingException("Yeni metin paragrafın kutusuna sığmıyor (yazı %30 küçültülse bile). Metni kısaltın." + (overflow is null ? "" : "\n" + overflow));
+        }
+        catch (NotSupportedException error) { throw new UserFacingException("Bu paragraf yerinde değiştirilemedi: " + error.Message, error); }
+        catch (Exception error) when (error is FormatException or InvalidOperationException or ArgumentException) { throw new UserFacingException("Paragraf değiştirilemedi: " + error.Message, error); }
+    }
+
+    // ----- Tüm belgede bul ve değiştir -----
+
+    public static ReplaceAllResult ReplaceAll(byte[] document, string find, string replace, bool caseSensitive, IProgress<OperationProgress>? progress, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(find)) throw new UserFacingException("Aranacak yazıyı girin.");
+        var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.CurrentCultureIgnoreCase;
+        int pageCount;
+        using (var pdf = PigDocument.Open(document)) pageCount = pdf.NumberOfPages;
+        var current = document; int replaced = 0, failed = 0, pagesHit = 0;
+        for (var page = 0; page < pageCount; page++)
+        {
+            token.ThrowIfCancellationRequested();
+            progress?.Report(new((double)page / pageCount, $"Sayfa {page + 1}/{pageCount} taranıyor…"));
+            var lines = Lines(current, page).Where(l => l.Text.Contains(find, comparison)).ToList();
+            if (lines.Count == 0) continue;
+            pagesHit++;
+            foreach (var line in lines)
+            {
+                token.ThrowIfCancellationRequested();
+                var text = line.Text.Replace(find, replace, comparison);
+                if (text == line.Text) continue;
+                try { current = Replace(current, page, line, text).Document; replaced++; }
+                catch (UserFacingException) { failed++; }
+            }
+        }
+        return new ReplaceAllResult(current, replaced, failed, pagesHit);
+    }
 }

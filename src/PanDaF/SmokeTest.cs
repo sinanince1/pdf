@@ -114,14 +114,47 @@ internal static class SmokeTest
             await rewrite.SmokeRewrite(1, "Saat 16.00, 2A sınıfı");
             await Settle(500);
             Check(rewrite.DocumentChanged && rewrite.LineCount == 2, "Satır yerinde değiştirildi, sayfa yeniden okundu");
+            Check(PandaWheel.For([textPdf]).Count == 6, "panel seçenekleri");
             Capture(window, Path.Combine(shots, "19-yazi-degistir.png"));
+            // Bul ve değiştir (tüm belge)
+            var all = await rewrite.ReplaceAllAsync("2A", "2B", caseSensitive: true);
+            Check(all is { ReplacedLines: 1, FailedLines: 0 }, $"Bul ve değiştir: {all?.ReplacedLines} satır değişti, {all?.FailedLines} başarısız");
             var rewriteTask = rewrite.SaveAsync();
             var rewritten = await Result(window);
             await rewriteTask;
             using (var check = UglyToad.PdfPig.PdfDocument.Open(rewritten[0]))
             {
                 var text = string.Join(" ", check.GetPage(1).GetWords().Select(w => w.Text));
-                Check(text.Contains("16.00") && !text.Contains("15.30") && text.Contains("Veli Toplantısı 12 Kasım Çarşamba"), "Yeni yazı var, eskisi yok, diğer satır duruyor: " + text);
+                Check(text.Contains("16.00") && !text.Contains("15.30") && text.Contains("Veli Toplantısı 12 Kasım Çarşamba") && text.Contains("2B") && !text.Contains("2A"), "Yeni yazı var, eskisi yok, diğer satır duruyor, 2A→2B: " + text);
+            }
+
+            // Paragraf düzenleme
+            var paraPdf = Path.Combine(input, "Paragraf.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage(); pg.Width = PdfSharp.Drawing.XUnit.FromPoint(595); pg.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                var font = new PdfSharp.Drawing.XFont("Arial", 12);
+                var tf = new PdfSharp.Drawing.Layout.XTextFormatter(g);
+                tf.DrawString("Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrencilerimizin evden sevdikleri bir kitabı getirmelerini rica ederiz. Etkinlik perşembe günü ikinci derste yapılacaktır.", font, PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XRect(60, 100, 400, 80), PdfSharp.Drawing.XStringFormats.TopLeft);
+                g.DrawString("Saygılarımızla, 2A öğretmeni", font, PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 220));
+                doc.Save(paraPdf);
+            }
+            var paraView = new EditView(window); window.Navigate(paraView, "PDF'yi düzenle"); await Settle();
+            paraView.Load(paraPdf);
+            await WaitUntil(() => ((FrameworkElement)paraView.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await Settle(500);
+            await paraView.SmokeParagraph(0, "Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrenciler sevdikleri bir kitabı getirsin. Etkinlik cuma günü üçüncü derste yapılacaktır.");
+            await Settle(500);
+            Check(paraView.DocumentChanged && paraView.ParagraphCount >= 1, $"Paragraf yeniden akıtıldı (aday sayısı {paraView.ParagraphCount})");
+            Capture(window, Path.Combine(shots, "20-paragraf.png"));
+            var paraTask = paraView.SaveAsync();
+            var paraOut = await Result(window);
+            await paraTask;
+            using (var check = UglyToad.PdfPig.PdfDocument.Open(paraOut[0]))
+            {
+                var text = string.Join(" ", check.GetPage(1).GetWords().Select(w => w.Text));
+                Check(text.Contains("cuma") && !text.Contains("perşembe") && text.Contains("Saygılarımızla"), "Paragraf metni değişti, altındaki satır duruyor: " + text);
             }
 
             // PDF'den resme

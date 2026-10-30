@@ -217,11 +217,13 @@ public partial class MainWindow : Window
         shift.Click += (_, _) => SetShiftPanel(shift.IsChecked);
         var startup = new MenuItem { Header = "Bilgisayar açılınca başlat", IsCheckable = true, IsChecked = settings.StartWithWindows };
         startup.Click += (_, _) => SetStartup(startup.IsChecked);
+        var signature = new MenuItem { Header = "İmza resmini seç…" };
+        signature.Click += (_, _) => { if (PanDaF.Views.EditView.ChooseSignature()) Info("İmza kaydedildi. Düzenleyicide “İmza” düğmesiyle eklenir."); };
         var about = new MenuItem { Header = "Hakkında" };
         about.Click += About_Click;
         var exit = new MenuItem { Header = "PanDaF'tan çık" };
         exit.Click += (_, _) => ExitApp();
-        menu.Items.Add(shift); menu.Items.Add(startup); menu.Items.Add(new Separator()); menu.Items.Add(about); menu.Items.Add(exit);
+        menu.Items.Add(shift); menu.Items.Add(startup); menu.Items.Add(signature); menu.Items.Add(new Separator()); menu.Items.Add(about); menu.Items.Add(exit);
         menu.IsOpen = true;
     }
 

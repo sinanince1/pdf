@@ -7,7 +7,11 @@
 İlk açılışta Windows "Windows bilgisayarınızı korudu" uyarısı verebilir. **Ek bilgi** → **Yine de çalıştır** seçin. (Uygulama ücretli bir kod imzası taşımadığı için bu uyarı çıkar.)
 
 ### Yeni
-- **Yazıyı değiştir:** Düzenleyicide var olan bir satıra tıklayıp yenisini yazın; aynı yazı tipiyle yerinde değişir, sayfa kaymaz (KillerPDF motoru). Lisans GPL-3.0 oldu.
+- **Bul ve değiştir:** tüm belgede, yerinde.
+- **Paragrafı değiştir:** satırlar kutuya göre yeniden akar.
+- **Kayıtlı imza:** Ayarlar'dan seçin, tek tıkla ekleyin.
+- **Kapat** kutusu zemin rengini alır.
+- Yedek yazı tipi artık aynı ailenin Windows'taki hâli (Calibri → Calibri).
 
 ### Araçlar
 - PDF birleştir

@@ -76,7 +76,7 @@ public static class PdfAnnotator
         switch (mark.Kind)
         {
             case MarkKind.Whiteout:
-                g.DrawRectangle(XBrushes.White, mark.X, mark.Y, mark.Width, mark.Height);
+                g.DrawRectangle(new XSolidBrush(string.IsNullOrEmpty(mark.Color) || mark.Color == "#000000" ? XColors.White : color), mark.X, mark.Y, mark.Width, mark.Height);
                 break;
             case MarkKind.Highlight:
                 g.DrawRectangle(new XSolidBrush(XColor.FromArgb(90, color.R, color.G, color.B)), mark.X, mark.Y, mark.Width, mark.Height);

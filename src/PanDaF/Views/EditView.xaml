@@ -37,6 +37,17 @@
       <!-- Araç çubuğu -->
       <Border x:Name="Toolbar" Visibility="Collapsed" Padding="8,6" CornerRadius="12" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1">
         <DockPanel>
+          <Border x:Name="FindPanel" DockPanel.Dock="Bottom" Visibility="Collapsed" Margin="0,8,0,0" Padding="10,8" CornerRadius="10" Background="{StaticResource PrimarySoft}">
+            <WrapPanel VerticalAlignment="Center">
+              <TextBlock Text="Bul:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox x:Name="FindBox" Width="200" Margin="0,0,12,0"/>
+              <TextBlock Text="Değiştir:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox x:Name="ReplaceBox" Width="200" Margin="0,0,12,0"/>
+              <CheckBox x:Name="CaseBox" Content="Büyük/küçük harfe duyarlı" VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <Button Content="Tümünü değiştir" Style="{StaticResource PrimaryButton}" FontSize="14" Padding="16,7" Click="ReplaceAll_Click"/>
+              <Button Content="Kapat" Style="{StaticResource GhostButton}" Margin="6,0,0,0" Click="FindReplace_Click"/>
+            </WrapPanel>
+          </Border>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
             <Button x:Name="UndoButton" Style="{StaticResource GhostButton}" Click="Undo_Click" IsEnabled="False" ToolTip="Geri al (Ctrl+Z)">
               <TextBlock Style="{StaticResource Icon}" Text="&#xE7A7;" FontSize="15"/>
@@ -51,6 +62,9 @@
             </RadioButton>
             <RadioButton x:Name="RewriteTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Var olan yazıyı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
               <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Yazıyı değiştir"/></StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ParagraphTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Paragrafı değiştir: paragrafa tıklayın, metni düzenleyin, Ctrl+Enter ile uygulayın. Satırlar kutuya göre yeniden akar.">
+              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE8D3;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Paragraf"/></StackPanel>
             </RadioButton>
             <RadioButton x:Name="TextTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Yeni yazı kutusu: sayfada tıklayıp yazın">
               <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE8D2;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Yeni yazı"/></StackPanel>
@@ -76,6 +90,13 @@
             </Button>
             <Button Style="{StaticResource GhostButton}" Click="AddBoth_Click" ToolTip="Her sayfaya iki logoyu da ekle">
               <TextBlock Text="İkisini her sayfaya"/>
+            </Button>
+            <Button Style="{StaticResource GhostButton}" Click="AddSignature_Click" ToolTip="Kayıtlı imzanızı sağ alta ekler. İlk kullanımda imza resminizi seçersiniz; Ayarlar'dan değiştirilebilir.">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEE56;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="İmza"/></StackPanel>
+            </Button>
+            <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
+            <Button Style="{StaticResource GhostButton}" Click="FindReplace_Click" ToolTip="Tüm belgede bir yazıyı bulup yerinde değiştir (ör. 2025-2026 → 2026-2027)">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Bul ve değiştir"/></StackPanel>
             </Button>
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
             <!-- Yazı seçenekleri -->

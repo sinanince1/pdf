@@ -217,6 +217,9 @@ internal static class Program
             Check(words.Contains("İkinci") && words.Contains("sabit"), "diğer satır yerinde kaldı");
             var after = pdf.GetPage(1).GetWords().First(w => w.Text == "Merhaba").BoundingBox.Left;
             Check(Math.Abs(after - 72) < 1, $"satır başlangıcı aynı yerde ({after:0.0})");
+            var all = TextRewriter.ReplaceAll(bytes, "satır", "SATIR", caseSensitive: true, null, default);
+            using var pdf2 = UglyToad.PdfPig.PdfDocument.Open(all.Document);
+            Check(all.ReplacedLines == 1 && pdf2.GetPage(1).GetWords().Any(w => w.Text == "SATIR"), $"bul-değiştir: {all.ReplacedLines} satır");
             return Task.CompletedTask;
         });
 
