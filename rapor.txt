@@ -1,0 +1,26 @@
+OK   Resimler tek PDF'de birleşti (3 sayfa)
+OK   İki PDF birleşti (6 sayfa)
+OK   Her sayfa ayrı PDF oldu (6 dosya)
+OK   Seçilen sayfalar alındı (3 sayfa)
+OK   Sayfa silindi ve sıralandı (5 sayfa)
+OK   Düzenlenen PDF kaydedildi (6 sayfa): Birleştirilmiş PDF (düzenlendi).pdf
+OK   Eklenen Türkçe yazı PDF'de okunuyor: Düzeltilmiş başlık ĞÜŞİÖÇ
+OK   Logolar sayfaya gömüldü
+OK   Satır yerinde değiştirildi, sayfa yeniden okundu
+OK   panel seçenekleri
+OK   Bul ve değiştir: 1 satır değişti, 0 başarısız
+OK   Yeni yazı var, eskisi yok, diğer satır duruyor, 2A→2B: Veli Toplantısı 12 Kasım Çarşamba Saat 16.00, 2B sınıfı
+OK   Paragraf yeniden akıtıldı
+OK   Değişen paragraf hâlâ paragraf olarak tanınıyor (1)
+OK   Paragraf metni değişti, altındaki satır duruyor: Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrenciler sevdikleri bir kitabı getirsin. Etkinlik cuma günü üçüncü derste yapılacaktır. Saygılarımızla, 2A öğretmeni
+OK   PDF sayfaları JPG oldu (3 resim)
+OK   Tek PDF için panel seçenekleri
+OK   Birden fazla PDF için panel seçenekleri
+OK   Birden fazla resim için panel seçenekleri
+OK   Tek resim için panel: PDF yap
+OK   Panelden sessiz işlem: PDF → resim
+OK   Panelden sessiz işlem: resim → aynı klasöre aynı adla PDF
+OK   Panelden sessiz işlem: 3 resim → tek PDF
+OK   Sessiz işlemde uygulama penceresi sonuç göstermedi
+OK   Arayüz hata göstermedi
+SONUÇ: BAŞARILI
