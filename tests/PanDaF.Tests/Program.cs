@@ -166,6 +166,8 @@ internal static class Program
             using var zip = ZipFile.OpenRead(xlsx[0]);
             using var reader = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
             var xml = reader.ReadToEnd();
+            Console.WriteLine("  BİLGİ sözcükler: " + string.Join(" | ", UglyToad.PdfPig.PdfDocument.Open(pdfPath).GetPage(1).GetWords().Select(w => $"{w.Text}@{w.BoundingBox.Left:0},{w.BoundingBox.Bottom:0}")));
+            Console.WriteLine("  BİLGİ hücreler: " + string.Join(" ; ", PdfTables.ExtractRows(UglyToad.PdfPig.PdfDocument.Open(pdfPath).GetPage(1)).Select(r => string.Join(" | ", r))));
             Check(xml.Contains("<t xml:space=\"preserve\">Ayşe Yılmaz</t>"), "ad soyad tek hücrede");
             Check(xml.Contains("<c r=\"B2\"><v>85</v></c>") && xml.Contains("<c r=\"D2\"><v>87.5</v></c>"), "sayılar doğru sütunda ve sayı olarak (85, 87,5)");
             Check(xml.Contains("<c r=\"D1\"") && xml.Contains(">Ortalama</t>"), "4 sütun başlığı");
