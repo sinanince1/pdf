@@ -7,8 +7,8 @@
 İlk açılışta Windows "Windows bilgisayarınızı korudu" uyarısı verebilir. **Ek bilgi** → **Yine de çalıştır** seçin. (Uygulama ücretli bir kod imzası taşımadığı için bu uyarı çıkar.)
 
 ### Yeni
-- **Shift paneli:** Dosyaları sürüklerken Shift'e basın; açılan panelden seçin. PDF yap, Word'e çevir ve Resme çevir pencere açmadan, soru sormadan dosyanın yanına kaydeder.
-- **Bilgisayar açılınca başlar** ve saatin yanında (sistem tepsisinde) bekler. Ayarlar'dan kapatılabilir.
+- **PDF → Word daha güçlü:** Word → LibreOffice (doğrudan) → metin çıkarma sırasıyla denenir; taranmış PDF'lerde yazı tanıma.
+- **PDF → Excel:** Tablolar hücrelere aktarılır; ek program gerekmez. Shift panelinde de var.
 
 ### Araçlar
 - PDF birleştir

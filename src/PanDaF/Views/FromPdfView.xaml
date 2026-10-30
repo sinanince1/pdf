@@ -42,7 +42,13 @@
           <RadioButton x:Name="ToWord" Style="{StaticResource OptionCard}" GroupName="Target" IsChecked="True" Checked="Target_Changed">
             <StackPanel>
               <TextBlock Text="Word belgesi (.docx)" FontWeight="SemiBold"/>
-              <TextBlock Text="Metni düzenleyebilirsiniz. Karmaşık sayfalarda düzen biraz değişebilir." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+              <TextBlock Text="Metni düzenleyebilirsiniz. Taranmış sayfalarda yazı otomatik tanınır." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="ToExcel" Style="{StaticResource OptionCard}" GroupName="Target" Checked="Target_Changed">
+            <StackPanel>
+              <TextBlock Text="Excel tablosu (.xlsx)" FontWeight="SemiBold"/>
+              <TextBlock Text="Sayfadaki tablo düzenini hücrelere aktarır. Not listeleri, çizelgeler için." FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
             </StackPanel>
           </RadioButton>
           <RadioButton x:Name="ToJpg" Style="{StaticResource OptionCard}" GroupName="Target" Checked="Target_Changed">

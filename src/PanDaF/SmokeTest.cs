@@ -86,8 +86,8 @@ internal static class SmokeTest
             Check(Directory.Exists(pictures[0]) && Directory.GetFiles(pictures[0], "*.jpg").Length == 3, "PDF sayfaları JPG oldu (3 resim)");
 
             // Shift paneli: seçenekler ve görünüm
-            Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["organize", "split", "word", "jpg"]), "Tek PDF için panel seçenekleri");
-            Check(PandaWheel.For([threePages, copy]).Select(c => c.Id).SequenceEqual(["merge", "word", "jpg"]), "Birden fazla PDF için panel seçenekleri");
+            Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["organize", "split", "word", "excel", "jpg"]), "Tek PDF için panel seçenekleri");
+            Check(PandaWheel.For([threePages, copy]).Select(c => c.Id).SequenceEqual(["merge", "word", "excel", "jpg"]), "Birden fazla PDF için panel seçenekleri");
             Check(PandaWheel.For(images).Select(c => c.Id).SequenceEqual(["pdf-combine", "pdf-separate", "open"]), "Birden fazla resim için panel seçenekleri");
             Check(PandaWheel.For([images[0]]).First().Id == "pdf", "Tek resim için panel: PDF yap");
             var panels = new List<(IReadOnlyList<string> Sample, string Name, int Index)>

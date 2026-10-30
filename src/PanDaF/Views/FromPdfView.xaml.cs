@@ -29,7 +29,7 @@ public partial class FromPdfView : UserControl
         list.Add(pdfs);
     }
 
-    private PdfTarget Target => ToJpg.IsChecked == true ? PdfTarget.Jpg : ToPng.IsChecked == true ? PdfTarget.Png : ToText.IsChecked == true ? PdfTarget.Text : PdfTarget.Word;
+    private PdfTarget Target => ToExcel.IsChecked == true ? PdfTarget.Excel : ToJpg.IsChecked == true ? PdfTarget.Jpg : ToPng.IsChecked == true ? PdfTarget.Png : ToText.IsChecked == true ? PdfTarget.Text : PdfTarget.Word;
 
     private void Target_Changed(object sender, RoutedEventArgs e)
     {
@@ -51,6 +51,7 @@ public partial class FromPdfView : UserControl
             PdfTarget.Word => MicrosoftOffice.HasWord ? "Microsoft Word ile Word belgesine çevrilecek."
                 : App.Converter.LibreOffice.Ready ? "LibreOffice ile Word belgesine çevrilecek."
                 : "LibreOffice ile Word belgesine çevrilecek (ilk kullanımda bir kez indirilir).",
+            PdfTarget.Excel => "Her sayfa bir çalışma sayfası olur; ek program gerekmez.",
             PdfTarget.Jpg or PdfTarget.Png => "Her sayfa ayrı bir resim olarak, yeni bir klasöre kaydedilecek.",
             _ => "Metin, aynı adla .txt dosyası olarak kaydedilecek.",
         };
@@ -73,12 +74,13 @@ public partial class FromPdfView : UserControl
         }
         var dpi = Quality.SelectedIndex == 1 ? 300 : 150;
         var destination = OutputFolder.For(files[0]);
-        var title = target switch { PdfTarget.Word => "Word belgesine çevriliyor", PdfTarget.Text => "Metin çıkarılıyor", _ => "Resimlere çevriliyor" };
+        var title = target switch { PdfTarget.Word => "Word belgesine çevriliyor", PdfTarget.Excel => "Excel'e aktarılıyor", PdfTarget.Text => "Metin çıkarılıyor", _ => "Resimlere çevriliyor" };
         var result = await shell.RunAsync(title, (_, progress, token) => converter.FromPdfAsync(files, destination, target, dpi, progress, token));
         if (result is null) return;
         shell.ShowResult(result, target switch
         {
             PdfTarget.Word => result.Count == 1 ? "Word belgesi hazır." : $"{result.Count} Word belgesi hazır.",
+            PdfTarget.Excel => result.Count == 1 ? "Excel tablosu hazır." : $"{result.Count} Excel tablosu hazır.",
             PdfTarget.Text => "Metin dosyası hazır.",
             _ => "Resimler hazır.",
         });
@@ -87,7 +89,7 @@ public partial class FromPdfView : UserControl
     /// Shift panelinden gelen PDF'ler için: hedefi seçer ve hemen dönüştürmeye başlar.
     internal void Start(IReadOnlyList<string> files, PdfTarget target)
     {
-        (target switch { PdfTarget.Jpg => ToJpg, PdfTarget.Png => ToPng, PdfTarget.Text => ToText, _ => ToWord }).IsChecked = true;
+        (target switch { PdfTarget.Excel => ToExcel, PdfTarget.Jpg => ToJpg, PdfTarget.Png => ToPng, PdfTarget.Text => ToText, _ => ToWord }).IsChecked = true;
         list.Clear();
         Add(files);
         if (list.Files.Count > 0) Go_Click(this, new RoutedEventArgs());

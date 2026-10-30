@@ -12,7 +12,7 @@
 | **PDF böl** | Her sayfayı ayrı PDF yapar, her N sayfada bir böler veya yalnızca istediğiniz sayfaları (ör. `1-3, 5`) alır. |
 | **Sayfaları düzenle** | Sayfaları küçük resimleriyle gösterir; silme, sürükleyerek sıralama ve döndürme. Geri alma desteklidir. |
 | **PDF'ye çevir** | Word, PowerPoint, Excel dosyalarını ve fotoğrafları PDF yapar. Fotoğraflar A4'e yerleştirilebilir, tek PDF'de birleştirilebilir. |
-| **PDF'den çevir** | PDF'yi Word belgesine, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
+| **PDF'den çevir** | PDF'yi Word belgesine, Excel tablosuna, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
 
 ### Shift paneli (en hızlı yol)
 
@@ -20,8 +20,8 @@ PanDaF çalışırken masaüstünde veya bir klasörde bir ya da birkaç dosyay�
 
 | Sürüklediğiniz | Paneldeki seçenekler |
 | --- | --- |
-| Tek PDF | Sayfaları düzenle · Böl · **Word'e çevir** · **Resme çevir** |
-| Birden fazla PDF | Birleştir · **Word'e çevir** · **Resme çevir** |
+| Tek PDF | Sayfaları düzenle · Böl · **Word'e çevir** · **Excel'e çevir** · **Resme çevir** |
+| Birden fazla PDF | Birleştir · **Word'e çevir** · **Excel'e çevir** · **Resme çevir** |
 | Tek resim veya Word/PowerPoint/Excel | **PDF yap** · PanDaF'ta aç |
 | Birden fazla resim | **Tek PDF yap** · **Ayrı PDF'ler** · PanDaF'ta aç |
 
@@ -51,7 +51,8 @@ Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakır
 
 - Bilgisayarda **Microsoft Office** kuruluysa dönüşümler Office'in kendisiyle yapılır; biçim en iyi şekilde korunur.
 - Office yoksa ücretsiz **LibreOffice** bileşeni ilk kullanımda **bir kez** indirilir (yaklaşık 350 MB). Uygulama önce izninizi sorar. Bileşen bilgisayara kurulmaz, yalnızca `%LOCALAPPDATA%\PanDaF` klasörüne açılır.
-- PDF'yi Word'e çevirmek, PDF'nin nasıl hazırlandığına bağlıdır. Taranmış (fotoğraf gibi) sayfalarda düzen tam korunmayabilir.
+- **PDF → Word** üç yolu sırayla dener: Microsoft Word'ün kendi dönüştürücüsü; LibreOffice'e PDF'yi doğrudan verme (sayfa düzeni korunur, Stirling-PDF'in de kullandığı yol); metni çıkarıp akıcı belge kurma. Taranmış (fotoğraf gibi) PDF'lerde Windows'un yazı tanıması kullanılır; belgeye sayfa görüntüsünün altında tanınan metin eklenir. Sonuç, PDF'nin nasıl hazırlandığına bağlıdır; hiçbir araç her PDF'yi kusursuz Word yapamaz.
+- **PDF → Excel** ek program gerektirmez: sayfadaki sözcüklerin konumlarından satır ve sütunlar çıkarılır, sayılar sayı olarak yazılır. Çizgili tablolarda ve not listelerinde iyi çalışır; serbest metinde satırlar tek sütuna düşer.
 
 ## Gizlilik ve güvenlik
 

@@ -114,10 +114,14 @@ public sealed class LibreOffice(string root)
             var filter = format switch
             {
                 "docx" => "docx:Office Open XML Text",
+                "xlsx" => "xlsx:Calc MS Excel 2007 XML",
                 "pdf" => "pdf:" + (spreadsheet ? "calc_pdf_Export" : slides ? "impress_pdf_Export" : "writer_pdf_Export"),
                 _ => throw new ArgumentException("Desteklenmeyen biçim."),
             };
-            var args = new List<string> { "-env:UserInstallation=" + new Uri(profile + Path.DirectorySeparatorChar).AbsoluteUri, "--headless", "--nologo", "--nodefault", "--nolockcheck", "--nofirststartwizard", "--norestore", "--convert-to", filter, "--outdir", rendered, input };
+            var args = new List<string> { "-env:UserInstallation=" + new Uri(profile + Path.DirectorySeparatorChar).AbsoluteUri, "--headless", "--nologo", "--nodefault", "--nolockcheck", "--nofirststartwizard", "--norestore" };
+            // PDF doğrudan Writer'a açılır (Stirling-PDF'in de kullandığı yol): sayfa düzeni korunur.
+            if (ext == "pdf") args.Add("--infilter=writer_pdf_import");
+            args.AddRange(["--convert-to", filter, "--outdir", rendered, input]);
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(token); limit.CancelAfter(ConversionTimeout);
             ProcessResult result;
             try { result = await ProcessRunner.RunAsync(office, args, limit.Token); }

@@ -167,9 +167,9 @@ public sealed class PandaWheel : Window
         var images = files.Count(FileKinds.IsImage);
         var convertible = files.Count(FileKinds.CanConvertToPdf);
         if (pdfs == 1 && files.Count == 1)
-            return [new("organize", "Sayfaları düzenle", "\uE70F"), new("split", "Böl", "\uE8C6"), new("word", "Word'e çevir", "\uE8A5"), new("jpg", "Resme çevir", "\uE91B")];
+            return [new("organize", "Sayfaları düzenle", "\uE70F"), new("split", "Böl", "\uE8C6"), new("word", "Word'e çevir", "\uE8A5"), new("excel", "Excel'e çevir", "\uE80A"), new("jpg", "Resme çevir", "\uE91B")];
         if (pdfs == files.Count)
-            return [new("merge", "Birleştir", "\uE8C8"), new("word", "Word'e çevir", "\uE8A5"), new("jpg", "Resme çevir", "\uE91B")];
+            return [new("merge", "Birleştir", "\uE8C8"), new("word", "Word'e çevir", "\uE8A5"), new("excel", "Excel'e çevir", "\uE80A"), new("jpg", "Resme çevir", "\uE91B")];
         if (images == files.Count && images > 1)
             return [new("pdf-combine", "Tek PDF yap", "\uE8A5"), new("pdf-separate", "Ayrı PDF'ler", "\uE8C8"), new("open", "PanDaF'ta aç", "\uE8E5")];
         if (convertible == files.Count) return [new("pdf", "PDF yap", "\uE8A5"), new("open", "PanDaF'ta aç", "\uE8E5")];

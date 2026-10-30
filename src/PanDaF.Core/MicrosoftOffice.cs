@@ -36,6 +36,9 @@ public static class MicrosoftOffice
     /// Word, PDF'yi düzenlenebilir bir belgeye kendisi dönüştürür (PDF Reflow).
     public static Task PdfToDocxAsync(string input, string output, CancellationToken token) => Sta(() => WordExport(input, output, pdfToDocx: true), token);
 
+    /// Hazırlanmış HTML'yi Word belgesi olarak kaydeder (taranmış PDF'lerin metin yolu için).
+    public static Task HtmlToDocxAsync(string input, string output, CancellationToken token) => Sta(() => WordExport(input, output, pdfToDocx: true), token);
+
     private static async Task Sta(Action work, CancellationToken token)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -9,7 +9,7 @@ using global::Windows.Storage.Streams;
 
 namespace PanDaF.Core;
 
-public enum PdfTarget { Word, Jpg, Png, Text }
+public enum PdfTarget { Word, Excel, Jpg, Png, Text }
 
 public sealed record ImageToPdfOptions(bool FitA4 = true, bool Combine = true, string CombinedName = "Resimler");
 
@@ -122,35 +122,116 @@ public sealed class Converter(string toolsRoot)
                     staged.Add(await PdfToWord(input, tx.StagingDirectory, dpi, token));
                     break;
                 }
+                case PdfTarget.Excel:
+                {
+                    progress?.Report(new((double)i / inputs.Count, $"Tablolar Excel'e aktarılıyor{label}…"));
+                    var output = SafePaths.Unique(tx.StagingDirectory, stem + ".xlsx");
+                    await Task.Run(() => PdfTables.ToXlsx(input, output, token), token);
+                    staged.Add(output);
+                    break;
+                }
             }
         }
         progress?.Report(new(.99, "Kaydediliyor…"));
         return tx.Publish(staged, token);
     }
 
+    /// Word'e çevirme sırası: 1) Microsoft Word'ün kendi dönüştürücüsü, 2) LibreOffice'e PDF'yi doğrudan verme
+    /// (düzen korunur), 3) metni çıkarıp akıcı belge kurma (taranmış sayfalarda Windows yazı tanıma).
+    /// Biri başarısız olursa veya boş belge üretirse sıradaki denenir.
     private async Task<string> PdfToWord(string input, string staging, int dpi, CancellationToken token)
     {
         var stem = SafePaths.Stem(input);
-        if (MicrosoftOffice.HasWord)
+        var scanned = await Task.Run(() => IsScanned(input), token);
+        var errors = new List<string>();
+        if (MicrosoftOffice.HasWord && !scanned)
         {
             var output = SafePaths.Unique(staging, stem + ".docx");
-            try { await MicrosoftOffice.PdfToDocxAsync(Path.GetFullPath(input), output, token); return output; }
-            catch (Exception error) when (error is not OperationCanceledException && LibreOffice.Ready)
-            {
-                if (File.Exists(output)) File.Delete(output);
-            }
+            try { await MicrosoftOffice.PdfToDocxAsync(Path.GetFullPath(input), output, token); if (HasText(output)) return output; }
+            catch (Exception error) when (error is not OperationCanceledException) { errors.Add("Word: " + error.Message); }
+            if (File.Exists(output)) File.Delete(output);
         }
-        if (!LibreOffice.Ready) throw new UserFacingException("PDF'yi Word'e çevirmek için Microsoft Word veya LibreOffice gerekli.");
+        if (LibreOffice.Ready && !scanned)
+        {
+            try { var output = await LibreOffice.ConvertAsync(input, "docx", staging, token); if (HasText(output)) return output; File.Delete(output); }
+            catch (Exception error) when (error is not OperationCanceledException) { errors.Add("LibreOffice: " + error.Message); }
+        }
+        if (!LibreOffice.Ready && !MicrosoftOffice.HasWord) throw new UserFacingException("PDF'yi Word'e çevirmek için Microsoft Word veya LibreOffice gerekli.");
+        // Akıcı metin yolu: metin + resimler HTML olarak kurulur, Word belgesine çevrilir. Taranmış sayfalar OCR ile okunur.
         var work = Path.Combine(staging, ".work-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
         try
         {
             var html = await Task.Run(() => EditableHtml(input, Math.Min(dpi, 200), token), token);
+            if (scanned) html = await OcrHtml(input, html, token);
             var source = Path.Combine(work, SafePaths.CleanName(stem) + ".html");
             await File.WriteAllTextAsync(source, html, token);
-            return await LibreOffice.ConvertAsync(source, "docx", staging, token);
+            if (LibreOffice.Ready) return await LibreOffice.ConvertAsync(source, "docx", staging, token);
+            var docx = SafePaths.Unique(staging, stem + ".docx");
+            await MicrosoftOffice.HtmlToDocxAsync(source, docx, token);
+            return docx;
         }
+        catch (UserFacingException error) when (errors.Count > 0) { throw new UserFacingException(error.Message + "\n\nDenenen diğer yollar: " + string.Join("; ", errors), error); }
         finally { try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+    }
+
+    /// Sayfaların çoğunda seçilebilir metin yoksa PDF taranmış sayılır.
+    public static bool IsScanned(string input)
+    {
+        try
+        {
+            using var pdf = UglyToad.PdfPig.PdfDocument.Open(input);
+            int empty = 0, total = 0;
+            foreach (var page in pdf.GetPages())
+            {
+                total++;
+                if (page.GetWords().Take(5).Count() < 5) empty++;
+                if (total >= 30) break;
+            }
+            return total > 0 && empty * 2 > total;
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { throw new UserFacingException(PdfPages.Friendly(input, error), error); }
+    }
+
+    private static bool HasText(string docx)
+    {
+        try
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(docx);
+            var entry = zip.GetEntry("word/document.xml");
+            if (entry is null) return false;
+            using var reader = new StreamReader(entry.Open());
+            var xml = reader.ReadToEnd();
+            return System.Text.RegularExpressions.Regex.Matches(xml, "<w:t[ >][^<]*").Count > 0 || xml.Contains("<w:drawing") || xml.Contains("<v:imagedata");
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException) { return false; }
+    }
+
+    // Taranmış sayfalar: sayfa görüntüsünün altına tanınan metin eklenir; böylece belge hem görünür hem düzenlenebilir.
+    private static async Task<string> OcrHtml(string input, string html, CancellationToken token)
+    {
+        var texts = new List<string>();
+        using (var raster = PdfRasterDocument.Open(input))
+            for (var i = 0; i < raster.PageCount; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                string text;
+                try { text = await Recognize(raster.RenderBitmap(i, 200, token), token); }
+                catch (UserFacingException) { text = ""; }
+                texts.Add(text);
+            }
+        var sections = System.Text.RegularExpressions.Regex.Split(html, "(?=<section )");
+        var builder = new StringBuilder();
+        var n = 0;
+        foreach (var part in sections)
+        {
+            if (!part.StartsWith("<section ")) { builder.Append(part); continue; }
+            var text = n < texts.Count ? texts[n] : ""; n++;
+            var insert = string.IsNullOrWhiteSpace(text) ? "" : "<div>" + string.Join("", text.Split('\n').Select(l => "<p style=\"margin:0 0 4pt\">" + System.Net.WebUtility.HtmlEncode(l) + "</p>")) + "</div>";
+            var close = part.LastIndexOf("</section>", StringComparison.Ordinal);
+            builder.Append(close >= 0 ? part[..close] + insert + part[close..] : part);
+        }
+        return builder.ToString();
     }
 
     // Taranmış sayfalar ve PdfPig'in çözemediği resimler PDFium ile çizilip eklenir.

@@ -229,7 +229,7 @@ public partial class MainWindow : Window
     public void QuickAction(string id, IReadOnlyList<string> files)
     {
         if (files.Count == 0) return;
-        if (id is "pdf" or "topdf" or "pdf-combine" or "pdf-separate" or "word" or "jpg") { _ = QuickConvertAsync(id, files); return; }
+        if (id is "pdf" or "topdf" or "pdf-combine" or "pdf-separate" or "word" or "excel" or "jpg") { _ = QuickConvertAsync(id, files); return; }
         BringToFront();
         if (IsBusy) { Info("Önceki işlem bitmeden yeni işlem başlatılamaz. Lütfen bekleyin."); return; }
         CloseResult();
@@ -255,7 +255,7 @@ public partial class MainWindow : Window
             else { var view = new FromPdfView(this); Navigate(view, "PDF'den çevir"); view.Start(files, PdfTarget.Word); }
             return [];
         }
-        var heading = toPdf ? "PDF'ye çevriliyor" : id == "word" ? "Word belgesine çevriliyor" : "Resimlere çevriliyor";
+        var heading = toPdf ? "PDF'ye çevriliyor" : id == "word" ? "Word belgesine çevriliyor" : id == "excel" ? "Excel'e aktarılıyor" : "Resimlere çevriliyor";
         var toast = Toast.Open(heading);
         await quickGate.WaitAsync();
         try
@@ -271,8 +271,8 @@ public partial class MainWindow : Window
                 var name = images == 1 || !combine ? SafePaths.Stem(files[0]) : $"{SafePaths.Stem(files.First(FileKinds.IsImage))} ({images} resim)";
                 result = await converter.ToPdfAsync(files, destination, new ImageToPdfOptions(FitA4: true, Combine: combine, CombinedName: name), progress, token);
             }
-            else result = await converter.FromPdfAsync(files, destination, id == "word" ? PdfTarget.Word : PdfTarget.Jpg, 150, progress, token);
-            toast.Done(result, toPdf ? (result.Count == 1 ? "PDF hazır" : $"{result.Count} PDF hazır") : id == "word" ? "Word belgesi hazır" : "Resimler hazır");
+            else result = await converter.FromPdfAsync(files, destination, id == "word" ? PdfTarget.Word : id == "excel" ? PdfTarget.Excel : PdfTarget.Jpg, 150, progress, token);
+            toast.Done(result, toPdf ? (result.Count == 1 ? "PDF hazır" : $"{result.Count} PDF hazır") : id == "word" ? "Word belgesi hazır" : id == "excel" ? "Excel tablosu hazır" : "Resimler hazır");
             return result;
         }
         catch (OperationCanceledException) { toast.Cancelled(); return []; }

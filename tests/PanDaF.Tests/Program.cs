@@ -138,6 +138,33 @@ internal static class Program
             Check(raster.PageCount == 3 && raster.RenderBitmap(1, 36).PixelHeight == 421, "önizleme çizimi");
         });
 
+        await Test("PDF → Excel: tablo çıkarma", async () =>
+        {
+            var pdfPath = Path.Combine(root, "Not listesi.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var page = doc.AddPage();
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
+                var font = new PdfSharp.Drawing.XFont("Arial", 11);
+                string[][] table = [["Ad Soyad", "Türkçe", "Matematik", "Ortalama"], ["Ayşe Yılmaz", "85", "90", "87,5"], ["Mehmet Kaya", "70", "65", "67,5"], ["Zeynep Demir", "100", "95", "97,5"]];
+                for (var r = 0; r < table.Length; r++)
+                    for (var c = 0; c < table[r].Length; c++)
+                        g.DrawString(table[r][c], font, PdfSharp.Drawing.XBrushes.Black, 50 + c * 120, 80 + r * 24);
+                doc.Save(pdfPath);
+            }
+            Check(!Converter.IsScanned(pdfPath), "metinli PDF taranmış sayılmaz");
+            Check(Converter.IsScanned(threePages), "resimlerden yapılan PDF taranmış sayılır");
+            var converter = new Converter(Folder("araclar-yok3"));
+            var xlsx = await converter.FromPdfAsync([pdfPath], Folder("excel"), PdfTarget.Excel, 150, null, default);
+            Check(xlsx.Count == 1 && xlsx[0].EndsWith("Not listesi.xlsx"), "xlsx oluştu");
+            using var zip = ZipFile.OpenRead(xlsx[0]);
+            using var reader = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
+            var xml = reader.ReadToEnd();
+            Check(xml.Contains("<t xml:space=\"preserve\">Ayşe Yılmaz</t>"), "ad soyad tek hücrede");
+            Check(xml.Contains("<c r=\"B2\"><v>85</v></c>") && xml.Contains("<c r=\"D2\"><v>87.5</v></c>"), "sayılar doğru sütunda ve sayı olarak (85, 87,5)");
+            Check(xml.Contains("<c r=\"D1\"") && xml.Contains(">Ortalama</t>"), "4 sütun başlığı");
+        });
+
         await Test("İptal yarım dosya bırakmaz", async () =>
         {
             var folder = Folder("iptal");
