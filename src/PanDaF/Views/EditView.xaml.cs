@@ -561,7 +561,7 @@ public partial class EditView : UserControl
         Remember();
         document = result.Document;
         await ReloadPages();
-        if (result.UsedSubstituteFont) Summary.Text = "Değiştirildi. Asıl yazı tipinde bu harfler yoktu; satır Arial ile yazıldı.";
+        if (result.UsedSubstituteFont) Summary.Text = "Değiştirildi. Gömülü yazı tipinde bu harfler yoktu; satır bilgisayardaki aynı yazı tipiyle (yoksa Arial) yazıldı.";
     }
 
     private async Task ReloadPages()

@@ -14,7 +14,7 @@
     <Product>PanDaF</Product>
     <Company>Sinan İnce</Company>
     <Copyright>Sinan İnce 2026 · GPL-3.0 · KillerPdf.Engine (GPL-3.0) · Nashi (MIT)</Copyright>
-    <Version>1.5.0</Version>
+    <Version>1.5.1</Version>
     <ApplicationIcon>Assets\PanDaF.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

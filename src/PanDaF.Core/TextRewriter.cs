@@ -6,7 +6,7 @@ namespace PanDaF.Core;
 
 /// Sayfadaki bir metin satırı: UI için sol üst köşeden konum (nokta), motor için bölge.
 public sealed record TextLine(string Text, double X, double Y, double Width, double Height, double FontSize, bool Bold,
-    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop);
+    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop, string FontName = "");
 
 public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont);
 
@@ -59,7 +59,7 @@ public static class TextRewriter
         var font = letter?.FontName ?? "";
         var text = string.Join(" ", words.Select(w => w.Text));
         return new TextLine(text, left - crop.Left, crop.Top - top, right - left, top - bottom, size, font.Contains("Bold", StringComparison.OrdinalIgnoreCase),
-            left - crop.Left - .5, bottom - crop.Bottom - .5, right - crop.Left + .5, top - crop.Bottom + .5);
+            left - crop.Left - .5, bottom - crop.Bottom - .5, right - crop.Left + .5, top - crop.Bottom + .5, font);
     }
 
     /// Satır yerinde değiştirilebilir mi? Değilse Türkçe gerekçe döner.
@@ -87,13 +87,108 @@ public static class TextRewriter
     {
         try
         {
-            var edit = new PdfTextLineEdit(pageIndex, Region(line), newText) { Substitute = line.Bold ? BoldFont.Value : Regular.Value, FontSize = fontSize };
+            var edit = new PdfTextLineEdit(pageIndex, Region(line), newText) { Substitute = SubstituteFor(line.FontName, line.Bold), FontSize = fontSize };
             var result = PdfTextLineEditor.Replace(KillerPdf.Engine.Documents.PdfDocument.Open(document), edit);
             return new RewriteResult(result.Document, result.Font == PdfTextLineFont.Substitute);
         }
         catch (NotSupportedException error) { throw new UserFacingException("Bu satır yerinde değiştirilemedi: " + error.Message, error); }
         catch (Exception error) when (error is FormatException or InvalidOperationException or ArgumentException)
         { throw new UserFacingException("Yazı değiştirilemedi: " + error.Message, error); }
+    }
+
+    // ----- Yedek yazı tipi: önce aynı ailenin Windows'taki tam hâli, yoksa Arial -----
+
+    private static readonly Dictionary<string, TrueTypeFont> substitutes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// "ABCDEF+Calibri-Bold" gibi bir PDF yazı tipi adı için Windows'ta kurulu en yakın dosyayı yükler.
+    internal static TrueTypeFont SubstituteFor(string pdfFontName, bool boldHint)
+    {
+        var (family, bold, italic) = Parse(pdfFontName, boldHint);
+        var key = $"{family}|{bold}|{italic}";
+        lock (substitutes)
+        {
+            if (substitutes.TryGetValue(key, out var cached)) return cached;
+            TrueTypeFont font;
+            var file = FindFontFile(family, bold, italic);
+            try { font = file is null ? (bold ? BoldFont.Value : Regular.Value) : TrueTypeFont.Load(File.ReadAllBytes(file)); }
+            catch (Exception error) when (error is IOException or FormatException or InvalidOperationException or ArgumentException) { font = bold ? BoldFont.Value : Regular.Value; }
+            return substitutes[key] = font;
+        }
+    }
+
+    internal static (string Family, bool Bold, bool Italic) Parse(string name, bool boldHint)
+    {
+        name = name ?? "";
+        var plus = name.IndexOf('+'); if (plus is >= 0 and <= 7) name = name[(plus + 1)..];
+        var lower = name.ToLowerInvariant();
+        var bold = boldHint || lower.Contains("bold") || lower.Contains("black") || lower.Contains("heavy") || lower.Contains("semibold");
+        var italic = lower.Contains("italic") || lower.Contains("oblique");
+        var family = name.Split(['-', ','], 2)[0];
+        foreach (var token in new[] { "Bold", "Italic", "Oblique", "Regular", "MT", "PS", "PSMT", "Light", "Black" }) family = family.Replace(token, "", StringComparison.OrdinalIgnoreCase);
+        family = family.Trim(' ', '-', ',');
+        // Yaygın PostScript adları → Windows aileleri
+        family = family.ToLowerInvariant() switch
+        {
+            "helvetica" or "helveticaneue" or "arialmt" => "Arial",
+            "times" or "timesnewroman" or "timesnewromanpsmt" or "timesnewromanps" => "Times New Roman",
+            "courier" or "couriernew" or "couriernewpsmt" => "Courier New",
+            "symbol" => "Arial",
+            _ => family,
+        };
+        return (family, bold, italic);
+    }
+
+    // Aile adı → Windows dosya adı kökleri. Her ailenin dosyaları: kök, kök+b/bd, kök+i, kök+z/bi.
+    private static readonly Dictionary<string, string[]> Files = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Arial"] = ["arial", "arialbd", "ariali", "arialbi"], ["Arial Narrow"] = ["arialn", "arialnb", "arialni", "arialnbi"],
+        ["Calibri"] = ["calibri", "calibrib", "calibrii", "calibriz"], ["Calibri Light"] = ["calibril", "calibrib", "calibrili", "calibriz"],
+        ["Times New Roman"] = ["times", "timesbd", "timesi", "timesbi"], ["Verdana"] = ["verdana", "verdanab", "verdanai", "verdanaz"],
+        ["Tahoma"] = ["tahoma", "tahomabd", "tahoma", "tahomabd"], ["Segoe UI"] = ["segoeui", "segoeuib", "segoeuii", "segoeuiz"],
+        ["Comic Sans MS"] = ["comic", "comicbd", "comici", "comicz"], ["Georgia"] = ["georgia", "georgiab", "georgiai", "georgiaz"],
+        ["Trebuchet MS"] = ["trebuc", "trebucbd", "trebucit", "trebucbi"], ["Courier New"] = ["cour", "courbd", "couri", "courbi"],
+        ["Candara"] = ["Candara", "Candarab", "Candarai", "Candaraz"], ["Corbel"] = ["corbel", "corbelb", "corbeli", "corbelz"],
+        ["Century Gothic"] = ["GOTHIC", "GOTHICB", "GOTHICI", "GOTHICBI"], ["Book Antiqua"] = ["BKANT", "ANTQUAB", "ANTQUAI", "ANTQUABI"],
+        ["Garamond"] = ["GARA", "GARABD", "GARAIT", "GARABD"], ["Impact"] = ["impact", "impact", "impact", "impact"],
+        ["Franklin Gothic"] = ["FRAMD", "FRADM", "FRAMDIT", "FRADMIT"], ["Palatino Linotype"] = ["pala", "palab", "palai", "palabi"],
+        ["Lucida Console"] = ["lucon", "lucon", "lucon", "lucon"], ["Consolas"] = ["consola", "consolab", "consolai", "consolaz"],
+        ["Bahnschrift"] = ["bahnschrift", "bahnschrift", "bahnschrift", "bahnschrift"], ["Cambria"] = ["cambria", "cambriab", "cambriai", "cambriaz"],
+    };
+
+    private static readonly string[] FontFolders =
+    [
+        Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts"),
+    ];
+
+    internal static string? FindFontFile(string family, bool bold, bool italic)
+    {
+        if (string.IsNullOrWhiteSpace(family)) return null;
+        var index = (bold, italic) switch { (true, true) => 3, (true, false) => 1, (false, true) => 2, _ => 0 };
+        var known = Files.FirstOrDefault(k => k.Key.Replace(" ", "").Equals(family.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)).Value;
+        if (known is not null)
+        {
+            foreach (var candidate in new[] { known[index], known[0] })
+                foreach (var folder in FontFolders)
+                {
+                    var path = Path.Combine(folder, candidate + ".ttf");
+                    if (File.Exists(path)) return path;
+                }
+        }
+        // Bilinmeyen aile: dosya adı aileyle başlayan .ttf'ler arasında stile göre seç.
+        var stem = family.Replace(" ", "").ToLowerInvariant();
+        foreach (var folder in FontFolders)
+        {
+            if (!Directory.Exists(folder)) continue;
+            string[] files;
+            try { files = Directory.GetFiles(folder, "*.ttf"); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { continue; }
+            var matches = files.Where(f => Path.GetFileNameWithoutExtension(f).Replace(" ", "").Replace("-", "").ToLowerInvariant().StartsWith(stem)).ToList();
+            if (matches.Count == 0) continue;
+            string Style(string f) => Path.GetFileNameWithoutExtension(f).Replace(" ", "").Replace("-", "").ToLowerInvariant()[stem.Length..];
+            bool IsBold(string st) => st.Contains("bold") || st is "b" or "bd" or "z" or "bi"; bool IsItalic(string st) => st.Contains("italic") || st.Contains("oblique") || st is "i" or "it" or "z" or "bi";
+            return matches.FirstOrDefault(f => IsBold(Style(f)) == bold && IsItalic(Style(f)) == italic) ?? matches.FirstOrDefault(f => Style(f) is "" or "regular") ?? matches[0];
+        }
+        return null;
     }
 
     private static PdfContentBounds Region(TextLine line) => new(line.RegionLeft, line.RegionBottom, line.RegionRight, line.RegionTop);

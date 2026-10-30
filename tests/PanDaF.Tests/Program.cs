@@ -220,6 +220,21 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        await Test("Yedek yazı tipi eşleme (aynı aile, Windows'tan)", () =>
+        {
+            var (family, bold, italic) = TextRewriter.Parse("ABCDEF+Calibri-Bold", false);
+            Check(family == "Calibri" && bold && !italic, $"Calibri-Bold çözüldü: {family} kalın={bold}");
+            var (f2, b2, i2) = TextRewriter.Parse("TimesNewRomanPS-BoldItalicMT", false);
+            Check(f2 == "Times New Roman" && b2 && i2, $"Times New Roman BoldItalic çözüldü: {f2}");
+            var calibri = TextRewriter.FindFontFile("Calibri", true, false);
+            Check(calibri is not null && calibri.EndsWith("calibrib.ttf", StringComparison.OrdinalIgnoreCase), "Calibri Bold dosyası bulundu: " + calibri);
+            var arial = TextRewriter.FindFontFile("Arial", false, true);
+            Check(arial is not null && arial.EndsWith("ariali.ttf", StringComparison.OrdinalIgnoreCase), "Arial Italic dosyası bulundu: " + arial);
+            Check(TextRewriter.FindFontFile("BöyleBirYazıTipiYok", false, false) is null, "bilinmeyen aile → Arial'a düşer");
+            Check(TextRewriter.SubstituteFor("ABCDEF+Calibri", false) is not null, "yedek yazı tipi yüklendi");
+            return Task.CompletedTask;
+        });
+
         await Test("İptal yarım dosya bırakmaz", async () =>
         {
             var folder = Folder("iptal");
