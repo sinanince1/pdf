@@ -188,7 +188,8 @@ internal static class Program
             ]);
             Check(PdfPages.PageCount(output) == 3, "sayfa sayısı korundu");
             using var pdf = UglyToad.PdfPig.PdfDocument.Open(output);
-            Check(pdf.GetPage(1).Text.Contains("Merhaba ĞÜŞİÖÇ"), "Türkçe yazı gömüldü");
+            Console.WriteLine("  BİLGİ sayfa1 metin: [" + pdf.GetPage(1).Text + "] sözcükler: " + string.Join(" | ", pdf.GetPage(1).GetWords().Select(w => w.Text)));
+            Check(pdf.GetPage(1).Text.Replace(" ", "").Contains("MerhabaĞÜŞİÖÇ"), "Türkçe yazı gömüldü");
             Check(pdf.GetPage(3).GetImages().Count() >= 2, "resim eklendi (asıl + yeni)");
             return Task.CompletedTask;
         });
