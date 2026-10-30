@@ -13,7 +13,7 @@ namespace PanDaF.Views;
 public partial class EditView : UserControl
 {
     private const string Filter = "PDF dosyaları|*.pdf";
-    private const double RenderDpi = 144;
+    private const int RenderDpi = 144;
     private readonly MainWindow shell;
     private readonly List<Mark> marks = [];
     private readonly Stack<List<Mark>> history = new();
@@ -86,7 +86,7 @@ public partial class EditView : UserControl
             pageCount = await Task.Run(() => PdfPages.PageCount(path));
             using var raster = PdfRasterDocument.Open(path);
             var first = raster.RenderBitmap(0, RenderDpi);
-            pages[0] = first; sizes[0] = new Size(first.PixelWidth * 72 / RenderDpi, first.PixelHeight * 72 / RenderDpi);
+            pages[0] = first; sizes[0] = new Size(first.PixelWidth * 72.0 / RenderDpi, first.PixelHeight * 72.0 / RenderDpi);
         }
         catch (UserFacingException error) { shell.Error(error.Message); return; }
         file = path; page = 0; marks.Clear(); history.Clear(); selected = null;
@@ -109,7 +109,7 @@ public partial class EditView : UserControl
                 bitmap = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); return raster.RenderBitmap(n, RenderDpi); });
             }
             catch (UserFacingException error) { shell.Error(error.Message); return; }
-            pages[page] = bitmap; sizes[page] = new Size(bitmap.PixelWidth * 72 / RenderDpi, bitmap.PixelHeight * 72 / RenderDpi);
+            pages[page] = bitmap; sizes[page] = new Size(bitmap.PixelWidth * 72.0 / RenderDpi, bitmap.PixelHeight * 72.0 / RenderDpi);
             if (pages.Count > 12) foreach (var old in pages.Keys.Where(k => Math.Abs(k - page) > 5).ToList()) pages.Remove(old);
         }
         PageImage.Source = bitmap;
@@ -228,7 +228,7 @@ public partial class EditView : UserControl
                 Overlay.CaptureMouse(); Redraw();
                 break;
             case Tool.Text:
-                var size = FontSize();
+                var size = ChosenFontSize();
                 var text = new Mark { Kind = MarkKind.Text, Page = page, X = p.X, Y = p.Y - size * .8, Width = Math.Min(260, Overlay.Width - p.X), Height = size * 1.6 + 4, FontSize = size, Bold = BoldBox.IsChecked == true, Color = color == "#F2C811" ? "#000000" : color };
                 Remember(); marks.Add(text); selected = text; Redraw(); BeginEdit(text);
                 SelectTool.IsChecked = true;
@@ -310,7 +310,7 @@ public partial class EditView : UserControl
 
     // ----- Yazı düzenleme -----
 
-    private double FontSize() => double.TryParse((FontSizeBox.SelectedItem as ComboBoxItem)?.Content?.ToString(), out var v) ? v : 14;
+    private double ChosenFontSize() => double.TryParse((FontSizeBox.SelectedItem as ComboBoxItem)?.Content?.ToString(), out var v) ? v : 14;
 
     private void BeginEdit(Mark mark)
     {
@@ -346,7 +346,7 @@ public partial class EditView : UserControl
     {
         if (selected is { Kind: MarkKind.Text })
         {
-            Remember(); selected.FontSize = FontSize(); selected.Bold = BoldBox.IsChecked == true;
+            Remember(); selected.FontSize = ChosenFontSize(); selected.Bold = BoldBox.IsChecked == true;
             if (editor?.Tag == selected) { editor.FontSize = selected.FontSize; editor.FontWeight = selected.Bold ? FontWeights.Bold : FontWeights.Normal; }
             Redraw();
         }
