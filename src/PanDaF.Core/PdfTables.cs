@@ -11,8 +11,6 @@ namespace PanDaF.Core;
 /// Her sayfa bir çalışma sayfası olur. Ek program gerektirmez. Sayılar sayı olarak yazılır.
 public static class PdfTables
 {
-    private sealed record Cell(double Left, double Right, string Text);
-
     public static void ToXlsx(string input, string output, CancellationToken token)
     {
         List<List<List<string>>> sheets;
@@ -36,8 +34,8 @@ public static class PdfTables
         WriteXlsx(output, sheets, token);
     }
 
-    /// Satırlar: aynı taban çizgisine yakın sözcükler. Sütunlar: sayfa genelinde sözcüklerin hiç bulunmadığı
-    /// dikey boşluk şeritleri sınır alınır; böylece hücreler satırdan satıra aynı sütuna düşer.
+    /// Satırlar: aynı taban çizgisine yakın sözcükler. Sütunlar: sayfa genelinde hiçbir sözcüğün
+    /// kaplamadığı dikey boşluk şeritleri sınır alınır; aynı satır ve sütuna düşen sözcükler birleşir.
     internal static List<List<string>> ExtractRows(Page page)
     {
         var words = page.GetWords().Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
@@ -49,43 +47,28 @@ public static class PdfTables
             var line = lines.LastOrDefault(l => Math.Abs(l[0].BoundingBox.Bottom - word.BoundingBox.Bottom) < height * .5);
             if (line is null) lines.Add([word]); else line.Add(word);
         }
-        // Satır içinde yakın sözcükleri birleştir (boşluk ≤ 1 karakter genişliği).
-        var rows = new List<List<Cell>>();
-        foreach (var line in lines)
-        {
-            var cells = new List<Cell>();
-            foreach (var word in line.OrderBy(w => w.BoundingBox.Left))
-            {
-                var box = word.BoundingBox;
-                var average = word.Letters.Count > 0 ? box.Width / word.Letters.Count : 5;
-                if (cells.Count > 0 && box.Left - cells[^1].Right <= Math.Max(3, average * 1.6))
-                    cells[^1] = new Cell(cells[^1].Left, box.Right, cells[^1].Text + " " + word.Text);
-                else cells.Add(new Cell(box.Left, box.Right, word.Text));
-            }
-            rows.Add(cells);
-        }
-        // Sütun sınırları: yatay eksende hiçbir hücrenin kaplamadığı boşluklar.
-        var spans = rows.SelectMany(r => r).Select(c => (c.Left, c.Right)).OrderBy(s => s.Left).ToList();
+        // Sütun sınırları: yatay eksende hiçbir sözcüğün kaplamadığı, en az 1,5 pt genişlikte boşluklar.
+        var spans = words.Select(w => (w.BoundingBox.Left, w.BoundingBox.Right)).OrderBy(s => s.Left).ToList();
         var boundaries = new List<double>();
         var reach = spans[0].Right;
         foreach (var span in spans.Skip(1))
         {
-            if (span.Left > reach + 4) boundaries.Add((reach + span.Left) / 2);
+            if (span.Left > reach + 1.5) boundaries.Add((reach + span.Left) / 2);
             reach = Math.Max(reach, span.Right);
         }
         var columns = boundaries.Count + 1;
         var result = new List<List<string>>();
-        foreach (var row in rows)
+        foreach (var line in lines)
         {
             var values = new string[columns];
-            foreach (var cell in row)
+            foreach (var word in line.OrderBy(w => w.BoundingBox.Left))
             {
-                var index = boundaries.Count(b => b < (cell.Left + cell.Right) / 2);
-                values[index] = string.IsNullOrEmpty(values[index]) ? cell.Text : values[index] + " " + cell.Text;
+                var center = (word.BoundingBox.Left + word.BoundingBox.Right) / 2;
+                var index = boundaries.Count(b => b < center);
+                values[index] = string.IsNullOrEmpty(values[index]) ? word.Text : values[index] + " " + word.Text;
             }
             result.Add(values.Select(v => v ?? "").ToList());
         }
-        // Tamamen boş sütunları at.
         for (var c = columns - 1; c >= 0; c--)
             if (result.All(r => r[c].Length == 0)) foreach (var r in result) r.RemoveAt(c);
         return result;
