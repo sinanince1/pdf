@@ -88,9 +88,13 @@ internal static class SmokeTest
             var editTask = edit.SaveAsync();
             var edited = await Result(window);
             await editTask;
-            Check(edited.Count == 1 && edited[0].EndsWith(" (düzenlendi).pdf") && PdfPages.PageCount(edited[0]) == 6 && new FileInfo(edited[0]).Length > new FileInfo(merged[0]).Length, "Düzenlenen PDF kaydedildi (6 sayfa, içerik eklendi)");
-            var editedText = await Converter.PdfText(edited[0], default);
-            Check(editedText.Contains("Düzeltilmiş başlık ĞÜŞİÖÇ"), "Eklenen Türkçe yazı PDF'de okunuyor");
+            Check(edited.Count == 1 && edited[0].EndsWith(" (düzenlendi).pdf") && PdfPages.PageCount(edited[0]) == 6, $"Düzenlenen PDF kaydedildi (6 sayfa): {string.Join(", ", edited.Select(Path.GetFileName))}");
+            using (var check = UglyToad.PdfPig.PdfDocument.Open(edited[0]))
+            {
+                var words = check.GetPage(1).GetWords().Select(w => w.Text).ToList();
+                Check(words.Contains("Düzeltilmiş") && words.Contains("ĞÜŞİÖÇ"), "Eklenen Türkçe yazı PDF'de okunuyor: " + string.Join(" ", words));
+                Check(check.GetPage(1).GetImages().Count() >= 3, "Logolar sayfaya gömüldü");
+            }
             using (var raster = PdfRasterDocument.Open(edited[0])) Capture(raster.RenderBitmap(0, 72), Path.Combine(shots, "18-duzenlenmis-sayfa.png"));
 
             // PDF'den resme
