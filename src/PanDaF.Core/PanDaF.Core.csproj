@@ -12,7 +12,7 @@
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8044" />
-    <PackageReference Include="KillerPdf.Engine" Version="1.8.2" />
+    <PackageReference Include="KillerPdf.Engine" Version="1.9.0" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PanDaF.Tests" />

@@ -9,7 +9,7 @@ extraction), PDF-to-HTML/text extraction, export transactions and safe paths.
 
 Bundled libraries (full license texts in the licenses/ folder):
 
-- KillerPdf.Engine 1.8.2 — Steve The Killer and contributors — GPL-3.0
+- KillerPdf.Engine 1.9.0 — Steve The Killer and contributors — GPL-3.0
   https://github.com/SteveTheKiller/KillerPDF — license text: LICENSE (same GPL-3.0 text)
   Used to rewrite existing text lines inside the page content, keeping the original font.
 
