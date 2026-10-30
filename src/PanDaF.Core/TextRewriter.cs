@@ -12,7 +12,10 @@ public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont, dou
 
 /// Sayfadaki bir paragraf (motorun bulduğu aday). Konum UI için sol üstten, nokta cinsinden.
 public sealed record Paragraph(string Text, double X, double Y, double Width, double Height, string FontName, double FontSize, double Leading,
-    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop);
+    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop)
+{
+    public List<TextLine> Lines { get; init; } = [];
+}
 
 public sealed record ReplaceAllResult(byte[] Document, int ReplacedLines, int FailedLines, int PagesWithMatches);
 
@@ -199,53 +202,107 @@ public static class TextRewriter
 
     private static PdfContentBounds Region(TextLine line) => new(line.RegionLeft, line.RegionBottom, line.RegionRight, line.RegionTop);
 
-    // ----- Paragraf düzenleme -----
+    // ----- Paragraf düzenleme: satırları gruplayıp yeni metni yeniden akıt, her satırı satır motoruyla değiştir -----
 
+    /// Aynı sol kenar, aynı yazı tipi/boyut ve düzenli satır aralığı olan ardışık satırlar bir paragraf sayılır (en az 2 satır).
     public static List<Paragraph> Paragraphs(byte[] document, int pageIndex, double pageHeight)
     {
-        try
+        var all = Lines(document, pageIndex).OrderBy(l => l.Y).ToList();
+        var result = new List<Paragraph>();
+        var group = new List<TextLine>();
+        void Flush()
         {
-            var candidates = PdfParagraphEditor.FindParagraphs(KillerPdf.Engine.Documents.PdfDocument.Open(document), pageIndex);
-            return candidates.Select(c => new Paragraph(c.Text, c.SourceRegion.Left, pageHeight - c.SourceRegion.Top, c.SourceRegion.Right - c.SourceRegion.Left, c.SourceRegion.Top - c.SourceRegion.Bottom,
-                c.FontName, c.FontSize, c.Leading, c.SourceRegion.Left, c.SourceRegion.Bottom, c.SourceRegion.Right, c.SourceRegion.Top)).ToList();
+            if (group.Count >= 2)
+            {
+                var left = group.Min(l => l.X); var top = group.Min(l => l.Y); var right = group.Max(l => l.X + l.Width); var bottom = group.Max(l => l.Y + l.Height);
+                var first = group[0];
+                var leading = group.Count > 1 ? (group[^1].Y - group[0].Y) / (group.Count - 1) : first.FontSize * 1.2;
+                result.Add(new Paragraph(string.Join(" ", group.Select(l => l.Text)), left, top, right - left, bottom - top, first.FontName, first.FontSize, leading,
+                    left, 0, right, 0) { Lines = [.. group] });
+            }
+            group.Clear();
         }
-        catch (Exception error) when (error is FormatException or InvalidOperationException or NotSupportedException or ArgumentException or IOException) { return []; }
+        foreach (var line in all)
+        {
+            if (group.Count > 0)
+            {
+                var previous = group[^1];
+                var gap = line.Y - previous.Y;
+                if (Math.Abs(previous.X - line.X) > 2 || gap < previous.FontSize * .8 || gap > previous.FontSize * 1.9 || previous.FontName != line.FontName || Math.Abs(previous.FontSize - line.FontSize) > .5) Flush();
+            }
+            group.Add(line);
+        }
+        Flush();
+        return result;
     }
 
-    /// Tanı: motorun bulduğu adaylar ve reddettiği gruplar (neden ile).
-    public static string ParagraphDiagnostics(byte[] document, int pageIndex)
-    {
-        try
-        {
-            var inspection = PdfParagraphEditor.InspectCandidates(KillerPdf.Engine.Documents.PdfDocument.Open(document), pageIndex);
-            return $"aday={inspection.Candidates.Count} [{string.Join(" | ", inspection.Candidates.Select(c => c.Text.Length > 40 ? c.Text[..40] + "…" : c.Text))}] " +
-                   $"ret={inspection.Refusals.Count} [{string.Join(" | ", inspection.Refusals.Select(r => r.RefusalCode + ": " + r.Reason))}]";
-        }
-        catch (Exception error) { return "hata: " + error.Message; }
-    }
-
-    /// Paragrafı yeni metinle, aynı kutuda yeniden akıtır. Sığmazsa yazı boyutunu kademeli küçültür (en çok %30).
+    /// Yeni metni paragrafın genişliğine göre satırlara böler ve her satırı yerinde değiştirir.
+    /// Satır sayısı yetmezse yazıyı kademeli küçültür (en çok %30); yine sığmazsa hata verir.
     public static RewriteResult ReplaceParagraph(byte[] document, int pageIndex, Paragraph paragraph, string newText)
     {
+        if (paragraph.Lines.Count == 0) throw new UserFacingException("Paragraf satırları bulunamadı.");
         var (family, bold, italic) = Parse(paragraph.FontName, false);
-        var font = SubstituteFor(paragraph.FontName, bold);
-        var region = new PdfContentBounds(paragraph.RegionLeft, paragraph.RegionBottom, paragraph.RegionRight, paragraph.RegionTop);
-        var leadingRatio = paragraph.FontSize > 0 ? paragraph.Leading / paragraph.FontSize : 1.2;
-        string? overflow = null;
-        try
+        var measure = Measurer.For(FindFontFile(family, bold, italic) ?? FindFontFile("Arial", bold, italic));
+        var width = Math.Max(paragraph.Lines.Max(l => l.Width), 20) * 1.01;
+        var words = newText.Replace("\r\n", "\n").Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var scale = 1.0; scale >= 0.69; scale -= 0.05)
         {
-            for (var scale = 1.0; scale >= 0.69; scale -= 0.05)
+            var size = paragraph.FontSize * scale;
+            var wrapped = Wrap(words, w => measure(w, size), measure(" ", size), width);
+            if (wrapped.Count > paragraph.Lines.Count) continue;
+            var current = document; var substituted = false;
+            for (var i = 0; i < paragraph.Lines.Count; i++)
             {
-                var size = paragraph.FontSize * scale;
-                var pdf = KillerPdf.Engine.Documents.PdfDocument.Open(document);
-                var plan = PdfParagraphEditor.Plan(pdf, pageIndex, region, region, newText, font, size, Math.Max(size * leadingRatio, size * 1.05), PdfParagraphAlignment.Left);
-                if (plan.HasOverflow) { overflow = plan.OverflowReason; continue; }
-                return new RewriteResult(PdfParagraphEditor.Apply(pdf, plan), true, scale < 1 ? size : null);
+                var text = i < wrapped.Count ? wrapped[i] : " ";
+                var result = Replace(current, pageIndex, paragraph.Lines[i], text, scale < 1 ? size : null);
+                current = result.Document; substituted |= result.UsedSubstituteFont;
             }
-            throw new UserFacingException("Yeni metin paragrafın kutusuna sığmıyor (yazı %30 küçültülse bile). Metni kısaltın." + (overflow is null ? "" : "\n" + overflow));
+            return new RewriteResult(current, substituted, scale < 1 ? size : null);
         }
-        catch (NotSupportedException error) { throw new UserFacingException("Bu paragraf yerinde değiştirilemedi: " + error.Message, error); }
-        catch (Exception error) when (error is FormatException or InvalidOperationException or ArgumentException) { throw new UserFacingException("Paragraf değiştirilemedi: " + error.Message, error); }
+        throw new UserFacingException($"Yeni metin paragrafın {paragraph.Lines.Count} satırına sığmıyor (yazı %30 küçültülse bile). Metni kısaltın.");
+    }
+
+    private static List<string> Wrap(string[] words, Func<string, double> widthOf, double space, double maxWidth)
+    {
+        var lines = new List<string>(); var line = ""; var lineWidth = 0.0;
+        foreach (var word in words)
+        {
+            var w = widthOf(word);
+            if (line.Length == 0) { line = word; lineWidth = w; continue; }
+            if (lineWidth + space + w <= maxWidth) { line += " " + word; lineWidth += space + w; }
+            else { lines.Add(line); line = word; lineWidth = w; }
+        }
+        if (line.Length > 0) lines.Add(line);
+        return lines;
+    }
+
+    /// Yazı tipi dosyasından harf genişliği ölçer (WPF GlyphTypeface). Dosya yoksa ortalama genişlik kullanır.
+    private static class Measurer
+    {
+        private static readonly Dictionary<string, Func<string, double, double>> cache = new(StringComparer.OrdinalIgnoreCase);
+        public static Func<string, double, double> For(string? fontFile)
+        {
+            var key = fontFile ?? "";
+            lock (cache)
+            {
+                if (cache.TryGetValue(key, out var found)) return found;
+                Func<string, double, double> fn;
+                try
+                {
+                    if (fontFile is null) throw new FileNotFoundException();
+                    var typeface = new System.Windows.Media.GlyphTypeface(new Uri(fontFile));
+                    fn = (text, size) =>
+                    {
+                        var total = 0.0;
+                        foreach (var ch in text) total += typeface.CharacterToGlyphMap.TryGetValue(ch, out var glyph) ? typeface.AdvanceWidths[glyph] : .55;
+                        return total * size;
+                    };
+                }
+                catch (Exception error) when (error is IOException or FileNotFoundException or ArgumentException or UriFormatException or NotSupportedException)
+                { fn = (text, size) => text.Length * .52 * size; }
+                return cache[key] = fn;
+            }
+        }
     }
 
     // ----- Tüm belgede bul ve değiştir -----

@@ -223,7 +223,7 @@ internal static class Program
             return Task.CompletedTask;
         });
 
-        await Test("Paragraf adayları (tanı)", () =>
+        await Test("Paragraf yeniden akıtma", () =>
         {
             var pdfPath = Path.Combine(Folder("paragraf"), "p.pdf");
             using (var doc = new PdfSharp.Pdf.PdfDocument())
@@ -236,9 +236,9 @@ internal static class Program
                 doc.Save(pdfPath);
             }
             var bytes = File.ReadAllBytes(pdfPath);
-            Console.WriteLine("  BİLGİ " + TextRewriter.ParagraphDiagnostics(bytes, 0));
             var paragraphs = TextRewriter.Paragraphs(bytes, 0, 842);
-            Check(paragraphs.Count >= 1, $"paragraf adayı var ({paragraphs.Count})");
+            Console.WriteLine("  BİLGİ paragraflar: " + string.Join(" || ", paragraphs.Select(p => $"{p.Lines.Count} satır: {p.Text[..Math.Min(40, p.Text.Length)]}…")));
+            Check(paragraphs.Count >= 1 && paragraphs[0].Lines.Count >= 2, $"çok satırlı paragraf bulundu ({paragraphs.Count})");
             if (paragraphs.Count > 0)
             {
                 var result = TextRewriter.ReplaceParagraph(bytes, 0, paragraphs[0], "Sevgili veliler, etkinlik cuma günü yapılacaktır. Kitap getirmeyi unutmayın.");

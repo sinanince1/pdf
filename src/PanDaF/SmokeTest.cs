@@ -144,8 +144,7 @@ internal static class SmokeTest
             paraView.Load(paraPdf);
             await WaitUntil(() => ((FrameworkElement)paraView.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
             await Settle(500);
-            Console.WriteLine("BİLGİ paragraf: " + TextRewriter.ParagraphDiagnostics(File.ReadAllBytes(paraPdf), 0));
-            Check(paraView.ParagraphCount >= 1, "Paragraf adayı bulundu: " + TextRewriter.ParagraphDiagnostics(File.ReadAllBytes(paraPdf), 0));
+            Check(paraView.ParagraphCount >= 1, $"Paragraf bulundu ({paraView.ParagraphCount})");
             await paraView.SmokeParagraph(0, "Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrenciler sevdikleri bir kitabı getirsin. Etkinlik cuma günü üçüncü derste yapılacaktır.");
             await Settle(500);
             Check(paraView.DocumentChanged && paraView.ParagraphCount >= 1, $"Paragraf yeniden akıtıldı (aday sayısı {paraView.ParagraphCount})");
