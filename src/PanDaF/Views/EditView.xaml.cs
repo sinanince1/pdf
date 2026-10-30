@@ -766,7 +766,12 @@ public partial class EditView : UserControl
     }
 
     internal int ParagraphCount => paragraphs.Count;
-    internal async Task SmokeParagraph(int index, string text) { ParagraphTool.IsChecked = true; await LoadParagraphs(); await ApplyParagraph(paragraphs[index], text); }
+    internal async Task SmokeParagraph(int index, string text)
+    {
+        ParagraphTool.IsChecked = true; await LoadParagraphs();
+        if (paragraphs.Count <= index) throw new InvalidOperationException($"Paragraf bulunamadı (aday sayısı {paragraphs.Count}).");
+        await ApplyParagraph(paragraphs[index], text);
+    }
     internal int LineCount => lines.Count;
     internal bool DocumentChanged => !ReferenceEquals(document, original);
     internal async Task SmokeRewrite(int index, string text) { RewriteTool.IsChecked = true; await LoadLines(); await ApplyRewrite(lines[index], text); }
