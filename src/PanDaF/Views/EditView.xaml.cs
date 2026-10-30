@@ -462,12 +462,8 @@ public partial class EditView : UserControl
         if (marks.Count == 0) { shell.Info("Henüz bir şey eklemediniz."); return null; }
         var input = file; var list = marks.Select(m => m.Clone()).ToList();
         var destination = OutputFolder.For(input);
-        var result = await shell.RunAsync("Düzenlenen PDF kaydediliyor", (_, progress, token) => Task.Run<IReadOnlyList<string>>(() =>
-        {
-            var output = SafePaths.Unique(destination, SafePaths.Stem(input) + " (düzenlendi).pdf");
-            PdfAnnotator.Save(input, output, list, token);
-            return [output];
-        }, token));
+        var result = await shell.RunAsync("Düzenlenen PDF kaydediliyor", (_, progress, token) =>
+            Task.Run<IReadOnlyList<string>>(() => [PdfAnnotator.SaveNextTo(input, destination, list, token)], token));
         if (result is not null) { history.Clear(); Redraw(); shell.ShowResult(result, "Düzenlediğiniz PDF yeni bir dosya olarak kaydedildi. Asıl PDF olduğu gibi duruyor."); }
         return result;
     }

@@ -91,7 +91,7 @@ public static class PdfPages
             var added = result.AddPage(source.Pages[pages[n] - 1]);
             added.Rotate = ((added.Rotate + rotations[n]) % 360 + 360) % 360;
         }
-        var output = Path.Combine(tx.StagingDirectory, $"{SafePaths.Stem(input)} (düzenlendi).pdf");
+        var output = Path.Combine(tx.StagingDirectory, $"{SafePaths.Stem(input)} (sayfalar düzenlendi).pdf");
         result.Save(output);
         return tx.Publish([output], token)[0];
     }

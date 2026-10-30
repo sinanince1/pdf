@@ -35,6 +35,15 @@ public sealed class Mark
 /// İşaretleri PDF'ye işler: asıl sayfa içeriği olduğu gibi kalır, eklenenler üstüne çizilir.
 public static class PdfAnnotator
 {
+    /// Düzenlenen PDF'yi hedef klasöre "Ad (düzenlendi).pdf" olarak yazar; yarım dosya bırakmaz.
+    public static string SaveNextTo(string input, string destination, IReadOnlyList<Mark> marks, CancellationToken token = default)
+    {
+        using var tx = new ExportTransaction(destination);
+        var staged = Path.Combine(tx.StagingDirectory, SafePaths.Stem(input) + " (düzenlendi).pdf");
+        Save(input, staged, marks, token);
+        return tx.Publish([staged], token)[0];
+    }
+
     public static void Save(string input, string output, IReadOnlyList<Mark> marks, CancellationToken token = default)
     {
         WindowsFontResolver.Install();
