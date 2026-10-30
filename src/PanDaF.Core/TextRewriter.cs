@@ -228,7 +228,10 @@ public static class TextRewriter
             {
                 var previous = group[^1];
                 var gap = line.Y - previous.Y;
-                if (Math.Abs(previous.X - line.X) > 2 || gap < previous.FontSize * .8 || gap > previous.FontSize * 1.9 || previous.FontName != line.FontName || Math.Abs(previous.FontSize - line.FontSize) > .5) Flush();
+                // Yazı tipi aile düzeyinde karşılaştırılır: alt küme öneki (ABCDEF+) ve yedek yazı tipi adı farkı paragrafı bölmesin.
+                if (Math.Abs(previous.X - line.X) > 2 || gap < previous.FontSize * .8 || gap > previous.FontSize * 1.9
+                    || !string.Equals(Parse(previous.FontName, false).Family, Parse(line.FontName, false).Family, StringComparison.OrdinalIgnoreCase)
+                    || Math.Abs(previous.FontSize - line.FontSize) > .6) Flush();
             }
             group.Add(line);
         }

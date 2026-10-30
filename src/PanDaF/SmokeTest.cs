@@ -146,7 +146,8 @@ internal static class SmokeTest
             await Settle(500);
             await paraView.SmokeParagraph(0, "Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrenciler sevdikleri bir kitabı getirsin. Etkinlik cuma günü üçüncü derste yapılacaktır.");
             await Settle(500);
-            Check(paraView.DocumentChanged && paraView.ParagraphCount >= 1, $"Paragraf yeniden akıtıldı (aday sayısı {paraView.ParagraphCount})");
+            Check(paraView.DocumentChanged, "Paragraf yeniden akıtıldı");
+            Check(paraView.ParagraphCount >= 1, $"Değişen paragraf hâlâ paragraf olarak tanınıyor ({paraView.ParagraphCount})");
             Capture(window, Path.Combine(shots, "20-paragraf.png"));
             var paraTask = paraView.SaveAsync();
             var paraOut = await Result(window);
