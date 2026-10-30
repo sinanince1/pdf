@@ -7,7 +7,7 @@
 İlk açılışta Windows "Windows bilgisayarınızı korudu" uyarısı verebilir. **Ek bilgi** → **Yine de çalıştır** seçin. (Uygulama ücretli bir kod imzası taşımadığı için bu uyarı çıkar.)
 
 ### Yeni
-- **PDF'yi düzenle:** yazı kutusu, beyazla kapatıp yeniden yazma, vurgu, kalem, resim/imza; İSTEK ve IB logoları tek tıkla (tüm sayfalara da). Shift panelinde "İçeriği düzenle".
+- **Yazıyı değiştir:** Düzenleyicide var olan bir satıra tıklayıp yenisini yazın; aynı yazı tipiyle yerinde değişir, sayfa kaymaz (KillerPDF motoru). Lisans GPL-3.0 oldu.
 
 ### Araçlar
 - PDF birleştir

@@ -97,6 +97,33 @@ internal static class SmokeTest
             }
             using (var raster = PdfRasterDocument.Open(edited[0])) Capture(raster.RenderBitmap(0, 72), Path.Combine(shots, "18-duzenlenmis-sayfa.png"));
 
+            // Yerinde yazı değiştirme (KillerPdf.Engine)
+            var textPdf = Path.Combine(input, "Duyuru.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage(); pg.Width = PdfSharp.Drawing.XUnit.FromPoint(595); pg.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                g.DrawString("Veli Toplantısı 12 Kasım Çarşamba", new PdfSharp.Drawing.XFont("Arial", 18, PdfSharp.Drawing.XFontStyleEx.Bold), PdfSharp.Drawing.XBrushes.DarkBlue, new PdfSharp.Drawing.XPoint(60, 100));
+                g.DrawString("Saat 15.30, 2A sınıfı", new PdfSharp.Drawing.XFont("Arial", 13), PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 130));
+                doc.Save(textPdf);
+            }
+            var rewrite = new EditView(window); window.Navigate(rewrite, "PDF'yi düzenle"); await Settle();
+            rewrite.Load(textPdf);
+            await WaitUntil(() => ((FrameworkElement)rewrite.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await Settle(500);
+            await rewrite.SmokeRewrite(1, "Saat 16.00, 2A sınıfı");
+            await Settle(500);
+            Check(rewrite.DocumentChanged && rewrite.LineCount == 2, "Satır yerinde değiştirildi, sayfa yeniden okundu");
+            Capture(window, Path.Combine(shots, "19-yazi-degistir.png"));
+            var rewriteTask = rewrite.SaveAsync();
+            var rewritten = await Result(window);
+            await rewriteTask;
+            using (var check = UglyToad.PdfPig.PdfDocument.Open(rewritten[0]))
+            {
+                var words = check.GetPage(1).GetWords().Select(w => w.Text).ToList();
+                Check(words.Contains("16.00") && !words.Contains("15.30") && words.Contains("Toplantısı"), "Yeni yazı var, eskisi yok, diğer satır duruyor: " + string.Join(" ", words));
+            }
+
             // PDF'den resme
             var fromPdf = new FromPdfView(window); window.Navigate(fromPdf, "PDF'den çevir"); await Settle();
             fromPdf.Add([threePages]); fromPdf.ToJpg.IsChecked = true; await Settle(600);

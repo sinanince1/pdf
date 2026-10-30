@@ -194,6 +194,32 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        await Test("Yerinde yazı değiştirme (KillerPdf.Engine)", () =>
+        {
+            var pdfPath = Path.Combine(Folder("yerinde"), "metin.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage();
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                g.DrawString("Merhaba ESKİ dünya", new PdfSharp.Drawing.XFont("Arial", 14), PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(72, 100));
+                g.DrawString("İkinci satır sabit", new PdfSharp.Drawing.XFont("Arial", 14), PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(72, 130));
+                doc.Save(pdfPath);
+            }
+            var bytes = File.ReadAllBytes(pdfPath);
+            var lines = TextRewriter.Lines(bytes, 0);
+            Check(lines.Count == 2 && lines[0].Text == "Merhaba ESKİ dünya", $"satırlar çıkarıldı: {string.Join(" / ", lines.Select(l => l.Text))}");
+            Check(TextRewriter.Blocker(bytes, 0, lines[0]) is null, "satır değiştirilebilir");
+            var result = TextRewriter.Replace(bytes, 0, lines[0], "Merhaba YENİ dünya ğüşiöç");
+            using var pdf = UglyToad.PdfPig.PdfDocument.Open(result.Document);
+            var words = pdf.GetPage(1).GetWords().Select(w => w.Text).ToList();
+            Console.WriteLine("  BİLGİ yeni sözcükler: " + string.Join(" | ", words) + (result.UsedSubstituteFont ? " (yedek yazı tipi)" : " (asıl yazı tipi)"));
+            Check(words.Contains("YENİ") && !words.Contains("ESKİ"), "yazı yerinde değişti");
+            Check(words.Contains("İkinci") && words.Contains("sabit"), "diğer satır yerinde kaldı");
+            var after = pdf.GetPage(1).GetWords().First(w => w.Text == "Merhaba").BoundingBox.Left;
+            Check(Math.Abs(after - 72) < 1, $"satır başlangıcı aynı yerde ({after:0.0})");
+            return Task.CompletedTask;
+        });
+
         await Test("İptal yarım dosya bırakmaz", async () =>
         {
             var folder = Folder("iptal");

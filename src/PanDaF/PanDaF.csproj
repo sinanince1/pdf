@@ -13,8 +13,8 @@
     <AssemblyName>PanDaF</AssemblyName>
     <Product>PanDaF</Product>
     <Company>Sinan İnce</Company>
-    <Copyright>Sinan İnce 2026 · Nashi PDF motoru © Orkun Işıtmak (MIT)</Copyright>
-    <Version>1.4.0</Version>
+    <Copyright>Sinan İnce 2026 · GPL-3.0 · KillerPdf.Engine (GPL-3.0) · Nashi (MIT)</Copyright>
+    <Version>1.5.0</Version>
     <ApplicationIcon>Assets\PanDaF.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

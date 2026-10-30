@@ -1,6 +1,6 @@
 PanDaF — Üçüncü taraf bileşenler / Third-party notices
 
-PanDaF's own source is MIT licensed (see LICENSE). It is derived in part from
+PanDaF is licensed under the GNU GPL v3 (see LICENSE); versions before 1.5.0 were MIT. It is derived in part from
 Nashi by Orkun Işıtmak and Nashi contributors (MIT):
 https://github.com/orkunisitmak/nashi-app
 Adapted parts: PDF page engine (merge/split/reorder, form-field safety check),
@@ -8,6 +8,10 @@ PDFium rendering and form preview, LibreOffice runtime setup (verified MSI
 extraction), PDF-to-HTML/text extraction, export transactions and safe paths.
 
 Bundled libraries (full license texts in the licenses/ folder):
+
+- KillerPdf.Engine 1.8.2 — Steve The Killer and contributors — GPL-3.0
+  https://github.com/SteveTheKiller/KillerPDF — license text: LICENSE (same GPL-3.0 text)
+  Used to rewrite existing text lines inside the page content, keeping the original font.
 
 - PDFsharp 6.2.4 — empira Software GmbH and contributors — MIT
   https://github.com/empira/PDFsharp — licenses/PDFsharp-MIT.txt

@@ -11,7 +11,7 @@
 | **PDF birleştir** | Birden fazla PDF'yi istediğiniz sırayla tek dosyada toplar. |
 | **PDF böl** | Her sayfayı ayrı PDF yapar, her N sayfada bir böler veya yalnızca istediğiniz sayfaları (ör. `1-3, 5`) alır. |
 | **Sayfaları düzenle** | Sayfaları küçük resimleriyle gösterir; silme, sürükleyerek sıralama ve döndürme. Geri alma desteklidir. |
-| **PDF'yi düzenle** | Sayfanın üzerine yazı kutusu ekleyin, bir alanı beyazla kapatıp üstüne yeni yazı yazın (düzeltme), vurgulayın, kalemle çizin, resim/imza ekleyin. **İSTEK** ve **IB** logoları tek tıkla, istenirse her sayfaya eklenir. Geri alma, taşıma ve boyutlandırma var. Asıl içerik değişmez; sonuç yeni dosya olur. |
+| **PDF'yi düzenle** | **Var olan yazıyı yerinde değiştirin:** satıra tıklayın, yenisini yazın; aynı yazı tipi ve boyutla, sayfanın geri kalanı kaymadan değişir (KillerPDF motoru). Ayrıca sayfanın üzerine yazı kutusu ekleyin, bir alanı beyazla kapatıp üstüne yeni yazı yazın (düzeltme), vurgulayın, kalemle çizin, resim/imza ekleyin. **İSTEK** ve **IB** logoları tek tıkla, istenirse her sayfaya eklenir. Geri alma, taşıma ve boyutlandırma var. Asıl içerik değişmez; sonuç yeni dosya olur. |
 | **PDF'ye çevir** | Word, PowerPoint, Excel dosyalarını ve fotoğrafları PDF yapar. Fotoğraflar A4'e yerleştirilebilir, tek PDF'de birleştirilebilir. |
 | **PDF'den çevir** | PDF'yi Word belgesine, Excel tablosuna, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
 
@@ -80,4 +80,6 @@ Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt`, Shift panelinin ad
 
 PanDaF, [Orkun Işıtmak](https://github.com/orkunisitmak)'ın açık kaynaklı [Nashi](https://github.com/orkunisitmak/nashi-app) uygulamasının PDF motoru temel alınarak hazırlanmıştır. Nashi'nin sayfa birleştirme/bölme/sıralama motoru, PDFium ile sayfa çizimi, LibreOffice'in doğrulanmış kurulumu ve PDF'den metin çıkarma kodları uyarlanmış; arayüz öğretmenler için yeniden yazılmıştır.
 
-[MIT lisansı](LICENSE) · [Üçüncü taraf bileşenler](THIRD-PARTY-NOTICES.txt) · Sinan İnce 2026
+Yerinde yazı değiştirme için [KillerPDF](https://github.com/SteveTheKiller/KillerPDF)'in `KillerPdf.Engine` kütüphanesi kullanılır (GPL-3.0). Bu nedenle PanDaF 1.5.0'dan itibaren **GPL-3.0** lisanslıdır (önceki sürümler MIT).
+
+[GPL-3.0 lisansı](LICENSE) · [Üçüncü taraf bileşenler](THIRD-PARTY-NOTICES.txt) · Sinan İnce 2026

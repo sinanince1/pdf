@@ -49,8 +49,11 @@
             <RadioButton x:Name="SelectTool" Style="{StaticResource Tool}" GroupName="Tool" IsChecked="True" ToolTip="Seç ve taşı">
               <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE8B0;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Seç"/></StackPanel>
             </RadioButton>
-            <RadioButton x:Name="TextTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Yazı kutusu: sayfada tıklayıp yazın">
-              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE8D2;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Yazı"/></StackPanel>
+            <RadioButton x:Name="RewriteTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Var olan yazıyı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
+              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Yazıyı değiştir"/></StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="TextTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Yeni yazı kutusu: sayfada tıklayıp yazın">
+              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE8D2;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Yeni yazı"/></StackPanel>
             </RadioButton>
             <RadioButton x:Name="WhiteoutTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Kapat: bir alanı beyazla örter; üstüne yeni yazı yazabilirsiniz">
               <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE75C;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Kapat"/></StackPanel>
@@ -59,7 +62,7 @@
               <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE7E6;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Vurgula"/></StackPanel>
             </RadioButton>
             <RadioButton x:Name="PenTool" Style="{StaticResource Tool}" GroupName="Tool" ToolTip="Kalem: serbest çizim">
-              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Kalem"/></StackPanel>
+              <StackPanel Style="{StaticResource ToolLabel}"><TextBlock Style="{StaticResource Icon}" Text="&#xEE56;" FontSize="14" Margin="0,0,6,0"/><TextBlock Text="Kalem"/></StackPanel>
             </RadioButton>
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
             <Button Style="{StaticResource GhostButton}" Click="AddImage_Click" ToolTip="Bilgisayarınızdan resim veya imza ekleyin">

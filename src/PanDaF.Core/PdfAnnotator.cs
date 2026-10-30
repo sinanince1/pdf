@@ -36,10 +36,10 @@ public sealed class Mark
 public static class PdfAnnotator
 {
     /// Düzenlenen PDF'yi hedef klasöre "Ad (düzenlendi).pdf" olarak yazar; yarım dosya bırakmaz.
-    public static string SaveNextTo(string input, string destination, IReadOnlyList<Mark> marks, CancellationToken token = default)
+    public static string SaveNextTo(string input, string destination, IReadOnlyList<Mark> marks, CancellationToken token = default, string? originalName = null)
     {
         using var tx = new ExportTransaction(destination);
-        var staged = Path.Combine(tx.StagingDirectory, SafePaths.Stem(input) + " (düzenlendi).pdf");
+        var staged = Path.Combine(tx.StagingDirectory, SafePaths.CleanName(SafePaths.Stem(originalName ?? input)) + " (düzenlendi).pdf");
         Save(input, staged, marks, token);
         return tx.Publish([staged], token)[0];
     }
@@ -47,6 +47,7 @@ public static class PdfAnnotator
     public static void Save(string input, string output, IReadOnlyList<Mark> marks, CancellationToken token = default)
     {
         WindowsFontResolver.Install();
+        if (marks.Count == 0) { File.Copy(input, output, true); return; }
         PdfDocument document;
         try { document = PdfReader.Open(input, PdfDocumentOpenMode.Modify); }
         catch (Exception error) when (error is not OperationCanceledException) { throw new UserFacingException(PdfPages.Friendly(input, error), error); }
@@ -131,6 +132,9 @@ public sealed class WindowsFontResolver : IFontResolver
             installed = true;
         }
     }
+
+    /// Arial (yoksa Segoe UI) dosyasının baytları; yerinde yazı değiştirmede yedek yazı tipi olarak kullanılır.
+    public static byte[] FontBytes(bool bold) => new WindowsFontResolver().GetFont(bold ? "pandaf-b" : "pandaf-r")!;
 
     public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
     {

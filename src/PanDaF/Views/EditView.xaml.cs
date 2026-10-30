@@ -16,7 +16,14 @@ public partial class EditView : UserControl
     private const int RenderDpi = 144;
     private readonly MainWindow shell;
     private readonly List<Mark> marks = [];
-    private readonly Stack<List<Mark>> history = new();
+    private readonly Stack<(List<Mark> Marks, byte[] Document)> history = new();
+    // Çalışılan belge: yerinde yazı değişiklikleri bu baytlara işlenir; sayfalar buradan çizilir.
+    private byte[] document = [];
+    private byte[] original = [];
+    private string workPath = "";
+    private List<TextLine> lines = [];
+    private TextLine? hoveredLine;
+    private TextBox? rewriteBox;
     private readonly Dictionary<int, BitmapSource> pages = [];
     private readonly Dictionary<int, Size> sizes = [];
     private string? file;
@@ -28,8 +35,8 @@ public partial class EditView : UserControl
     private string color = "#000000";
     private readonly Dictionary<string, Border> swatches = [];
 
-    private enum Tool { Select, Text, Whiteout, Highlight, Pen }
-    private Tool Current => TextTool.IsChecked == true ? Tool.Text : WhiteoutTool.IsChecked == true ? Tool.Whiteout : HighlightTool.IsChecked == true ? Tool.Highlight : PenTool.IsChecked == true ? Tool.Pen : Tool.Select;
+    private enum Tool { Select, Rewrite, Text, Whiteout, Highlight, Pen }
+    private Tool Current => RewriteTool.IsChecked == true ? Tool.Rewrite : TextTool.IsChecked == true ? Tool.Text : WhiteoutTool.IsChecked == true ? Tool.Whiteout : HighlightTool.IsChecked == true ? Tool.Highlight : PenTool.IsChecked == true ? Tool.Pen : Tool.Select;
 
     public EditView(MainWindow shell)
     {
@@ -40,7 +47,7 @@ public partial class EditView : UserControl
         DropHost.Content = drop;
         DropHelper.Attach(this, files => { if (file is null) Load(files[0]); });
         foreach (var hex in new[] { "#000000", "#D9480F", "#1F5FBF", "#16805C", "#F2C811" }) AddSwatch(hex);
-        foreach (var tool in new[] { SelectTool, TextTool, WhiteoutTool, HighlightTool, PenTool })
+        foreach (var tool in new[] { SelectTool, RewriteTool, TextTool, WhiteoutTool, HighlightTool, PenTool })
             tool.Checked += (_, _) => ToolChanged();
     }
 
@@ -72,8 +79,10 @@ public partial class EditView : UserControl
         PenOptions.Visibility = Current == Tool.Pen ? Visibility.Visible : Visibility.Collapsed;
         TextOptions.Visibility = Current is Tool.Text or Tool.Select ? Visibility.Visible : Visibility.Collapsed;
         if (Current == Tool.Highlight && color == "#000000") SetColor("#F2C811");
-        if (Current != Tool.Select) { EndEdit(); selected = null; Redraw(); }
-        Overlay.Cursor = Current == Tool.Select ? Cursors.Arrow : Current == Tool.Text ? Cursors.IBeam : Cursors.Cross;
+        if (Current != Tool.Select) { EndEdit(); selected = null; }
+        if (Current != Tool.Rewrite) EndRewrite(commit: false);
+        Overlay.Cursor = Current == Tool.Select ? Cursors.Arrow : Current is Tool.Text or Tool.Rewrite ? Cursors.IBeam : Cursors.Cross;
+        Redraw();
     }
 
     // ----- Yükleme ve görüntüleme -----
@@ -84,12 +93,16 @@ public partial class EditView : UserControl
         try
         {
             pageCount = await Task.Run(() => PdfPages.PageCount(path));
-            using var raster = PdfRasterDocument.Open(path);
+            original = document = await File.ReadAllBytesAsync(path);
+            workPath = Path.Combine(Directory.CreateDirectory(Path.Combine(App.DataFolder, "gecici")).FullName, Guid.NewGuid().ToString("N") + ".pdf");
+            await File.WriteAllBytesAsync(workPath, document);
+            using var raster = PdfRasterDocument.Open(workPath);
             var first = raster.RenderBitmap(0, RenderDpi);
             pages[0] = first; sizes[0] = new Size(first.PixelWidth * 72.0 / RenderDpi, first.PixelHeight * 72.0 / RenderDpi);
         }
-        catch (UserFacingException error) { shell.Error(error.Message); return; }
-        file = path; page = 0; marks.Clear(); history.Clear(); selected = null;
+        catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException) { shell.Error(error is UserFacingException ? error.Message : "Dosya okunamadı: " + error.Message); return; }
+        file = path; page = 0; marks.Clear(); history.Clear(); selected = null; lines = [];
+        Unloaded += (_, _) => { try { if (File.Exists(workPath)) File.Delete(workPath); } catch (IOException) { } catch (UnauthorizedAccessException) { } };
         DropHost.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = PageArea.Visibility = Footer.Visibility = Visibility.Visible;
         await ShowPage(0);
@@ -103,7 +116,7 @@ public partial class EditView : UserControl
         page = Math.Clamp(index, 0, pageCount - 1);
         if (!pages.TryGetValue(page, out var bitmap))
         {
-            var path = file; var n = page;
+            var path = workPath; var n = page;
             try
             {
                 bitmap = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); return raster.RenderBitmap(n, RenderDpi); });
@@ -116,7 +129,8 @@ public partial class EditView : UserControl
         var size = sizes[page];
         PageImage.Width = Overlay.Width = size.Width; PageImage.Height = Overlay.Height = size.Height;
         PageLabel.Text = $"Sayfa {page + 1} / {pageCount}";
-        EndEdit(); selected = null;
+        EndEdit(); EndRewrite(commit: false); selected = null;
+        await LoadLines();
         Redraw();
     }
 
@@ -157,10 +171,22 @@ public partial class EditView : UserControl
             var handle = new Rectangle { Width = grip, Height = grip, Fill = Ui.Brush("Primary"), Stroke = Brushes.White, StrokeThickness = 1 / zoom, IsHitTestVisible = false };
             Canvas.SetLeft(handle, selected.X + selected.Width - grip / 2); Canvas.SetTop(handle, selected.Y + selected.Height - grip / 2); Overlay.Children.Add(handle);
         }
+        if (Current == Tool.Rewrite)
+        {
+            foreach (var line in lines)
+            {
+                var box = new Rectangle { Width = Math.Max(1, line.Width + 4), Height = Math.Max(1, line.Height + 4), Fill = line == hoveredLine ? new SolidColorBrush(Color.FromArgb(50, 217, 72, 15)) : Brushes.Transparent, Stroke = line == hoveredLine ? Ui.Brush("Primary") : new SolidColorBrush(Color.FromArgb(90, 31, 95, 191)), StrokeThickness = 1 / zoom, StrokeDashArray = new DoubleCollection { 3, 2 }, IsHitTestVisible = false };
+                Canvas.SetLeft(box, line.X - 2); Canvas.SetTop(box, line.Y - 2); Overlay.Children.Add(box);
+            }
+        }
+        if (rewriteBox is not null) Overlay.Children.Add(rewriteBox);
         if (editor is not null) Overlay.Children.Add(editor);
         DeleteButton.IsEnabled = selected is not null;
         UndoButton.IsEnabled = history.Count > 0;
-        Summary.Text = marks.Count == 0 ? "Araç seçip sayfaya tıklayın veya sürükleyin." : $"{marks.Count} ekleme" + (marks.Any(m => m.Page != page) ? " (tüm sayfalar)" : "");
+        var changedText = !ReferenceEquals(document, original);
+        Summary.Text = Current == Tool.Rewrite ? (lines.Count > 0 ? "Değiştirmek istediğiniz yazıya tıklayın." : "Bu sayfada değiştirilebilir yazı bulunamadı (taranmış veya döndürülmüş olabilir).")
+            : marks.Count == 0 && !changedText ? "Araç seçip sayfaya tıklayın veya sürükleyin."
+            : string.Join(" · ", new[] { marks.Count > 0 ? $"{marks.Count} ekleme" : "", changedText ? "yazı değiştirildi" : "" }.Where(t => t.Length > 0));
     }
 
     private static Brush BrushOf(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
@@ -219,6 +245,12 @@ public partial class EditView : UserControl
         if (editor is not null) { if (selected is not null && Contains(selected, p)) return; EndEdit(); }
         switch (Current)
         {
+            case Tool.Rewrite:
+                var line = lines.FirstOrDefault(l => p.X >= l.X - 2 && p.X <= l.X + l.Width + 2 && p.Y >= l.Y - 2 && p.Y <= l.Y + l.Height + 2);
+                if (rewriteBox is not null) { EndRewrite(commit: true); if (line is null) return; }
+                if (line is null) return;
+                BeginRewrite(line);
+                break;
             case Tool.Select:
                 var hit = Hit(p);
                 if (hit is null) { selected = null; Redraw(); return; }
@@ -251,6 +283,12 @@ public partial class EditView : UserControl
     private void Overlay_Move(object sender, MouseEventArgs e)
     {
         var p = Pt(e);
+        if (Current == Tool.Rewrite)
+        {
+            var over = lines.FirstOrDefault(l => p.X >= l.X - 2 && p.X <= l.X + l.Width + 2 && p.Y >= l.Y - 2 && p.Y <= l.Y + l.Height + 2);
+            if (over != hoveredLine) { hoveredLine = over; Redraw(); }
+            return;
+        }
         if (Current == Tool.Select && dragging is null) Overlay.Cursor = selected is not null && OnGrip(selected, p) ? Cursors.SizeNWSE : Hit(p) is not null ? Cursors.SizeAll : Cursors.Arrow;
         if (e.LeftButton != MouseButtonState.Pressed) return;
         if (drawing is { Kind: MarkKind.Ink })
@@ -419,16 +457,19 @@ public partial class EditView : UserControl
     /// Geçmişe şu anki durumu yazar. Sürüklemede, taşınan öğenin hareket öncesi hâli (original) yazılır.
     private void Remember(Mark? original = null)
     {
-        history.Push(marks.Select(m => original is not null && m == dragging ? original.Clone() : m.Clone()).ToList());
+        history.Push((marks.Select(m => original is not null && m == dragging ? original.Clone() : m.Clone()).ToList(), document));
         while (history.Count > 60) { var keep = history.Take(60).Reverse().ToList(); history.Clear(); foreach (var s in keep) history.Push(s); }
     }
 
     private void Undo_Click(object sender, RoutedEventArgs e) => Undo();
     private void Undo()
     {
-        EndEdit();
+        EndEdit(); EndRewrite(commit: false);
         if (history.Count == 0) return;
-        marks.Clear(); marks.AddRange(history.Pop()); selected = null; Redraw();
+        var (previousMarks, previousDocument) = history.Pop();
+        marks.Clear(); marks.AddRange(previousMarks); selected = null;
+        if (!ReferenceEquals(previousDocument, document)) { document = previousDocument; _ = ReloadPages(); return; }
+        Redraw();
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e) => DeleteSelected();
@@ -458,15 +499,82 @@ public partial class EditView : UserControl
     internal async Task<IReadOnlyList<string>?> SaveAsync()
     {
         if (file is null) return null;
-        EndEdit();
-        if (marks.Count == 0) { shell.Info("Henüz bir şey eklemediniz."); return null; }
-        var input = file; var list = marks.Select(m => m.Clone()).ToList();
+        EndEdit(); EndRewrite(commit: true);
+        if (marks.Count == 0 && ReferenceEquals(document, original)) { shell.Info("Henüz bir değişiklik yapmadınız."); return null; }
+        var input = file; var list = marks.Select(m => m.Clone()).ToList(); var source = workPath;
         var destination = OutputFolder.For(input);
         var result = await shell.RunAsync("Düzenlenen PDF kaydediliyor", (_, progress, token) =>
-            Task.Run<IReadOnlyList<string>>(() => [PdfAnnotator.SaveNextTo(input, destination, list, token)], token));
+            Task.Run<IReadOnlyList<string>>(() => [PdfAnnotator.SaveNextTo(source, destination, list, token, originalName: input)], token));
         if (result is not null) { history.Clear(); Redraw(); shell.ShowResult(result, "Düzenlediğiniz PDF yeni bir dosya olarak kaydedildi. Asıl PDF olduğu gibi duruyor."); }
         return result;
     }
+
+    // ----- Yerinde yazı değiştirme (KillerPdf.Engine) -----
+
+    private async Task LoadLines()
+    {
+        var bytes = document; var n = page;
+        try { lines = await Task.Run(() => TextRewriter.Lines(bytes, n)); }
+        catch (Exception error) when (error is not OperationCanceledException) { App.Log(error); lines = []; }
+        hoveredLine = null;
+    }
+
+    private void BeginRewrite(TextLine line)
+    {
+        var blocker = TextRewriter.Blocker(document, page, line);
+        if (blocker is not null) { shell.Info(blocker); return; }
+        rewriteBox = new TextBox
+        {
+            Tag = line, Text = line.Text, AcceptsReturn = false, FontFamily = new FontFamily("Arial"), FontSize = line.FontSize, FontWeight = line.Bold ? FontWeights.Bold : FontWeights.Normal,
+            MinWidth = Math.Max(line.Width + 20, 60), MaxWidth = Math.Max(Overlay.Width - line.X, 60), Height = double.NaN, Padding = new Thickness(1, 0, 1, 0), Margin = new Thickness(0),
+            BorderThickness = new Thickness(1.5 / zoom), BorderBrush = Ui.Brush("Primary"), Background = Brushes.White, ToolTip = "Enter: uygula · Esc: vazgeç",
+        };
+        Canvas.SetLeft(rewriteBox, line.X - 1); Canvas.SetTop(rewriteBox, line.Y - 1);
+        rewriteBox.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { EndRewrite(commit: true); e.Handled = true; }
+            else if (e.Key == Key.Escape) { EndRewrite(commit: false); e.Handled = true; }
+        };
+        rewriteBox.LostKeyboardFocus += (_, _) => { if (rewriteBox is not null) EndRewrite(commit: true); };
+        Redraw();
+        rewriteBox.Focus(); rewriteBox.SelectAll();
+    }
+
+    private void EndRewrite(bool commit)
+    {
+        if (rewriteBox is null) return;
+        var box = rewriteBox; rewriteBox = null;
+        var line = (TextLine)box.Tag;
+        var text = box.Text;
+        if (commit && text != line.Text) _ = ApplyRewrite(line, text);
+        else Redraw();
+        Focus();
+    }
+
+    private async Task ApplyRewrite(TextLine line, string text)
+    {
+        if (string.IsNullOrEmpty(text)) text = " ";
+        var before = document; var n = page;
+        RewriteResult result;
+        try { result = await Task.Run(() => TextRewriter.Replace(before, n, line, text)); }
+        catch (UserFacingException error) { shell.Error(error.Message); Redraw(); return; }
+        Remember();
+        document = result.Document;
+        await ReloadPages();
+        if (result.UsedSubstituteFont) Summary.Text = "Değiştirildi. Asıl yazı tipinde bu harfler yoktu; satır Arial ile yazıldı.";
+    }
+
+    private async Task ReloadPages()
+    {
+        try { await File.WriteAllBytesAsync(workPath, document); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { shell.Error("Geçici dosya yazılamadı: " + error.Message); return; }
+        pages.Clear();
+        await ShowPage(page);
+    }
+
+    internal int LineCount => lines.Count;
+    internal bool DocumentChanged => !ReferenceEquals(document, original);
+    internal async Task SmokeRewrite(int index, string text) { RewriteTool.IsChecked = true; await LoadLines(); await ApplyRewrite(lines[index], text); }
 
     // Duman testi
     internal void SmokeAdd()
