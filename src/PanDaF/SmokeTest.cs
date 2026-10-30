@@ -120,8 +120,8 @@ internal static class SmokeTest
             await rewriteTask;
             using (var check = UglyToad.PdfPig.PdfDocument.Open(rewritten[0]))
             {
-                var words = check.GetPage(1).GetWords().Select(w => w.Text).ToList();
-                Check(words.Contains("16.00") && !words.Contains("15.30") && words.Contains("Toplantısı"), "Yeni yazı var, eskisi yok, diğer satır duruyor: " + string.Join(" ", words));
+                var text = string.Join(" ", check.GetPage(1).GetWords().Select(w => w.Text));
+                Check(text.Contains("16.00") && !text.Contains("15.30") && text.Contains("Veli Toplantısı 12 Kasım Çarşamba"), "Yeni yazı var, eskisi yok, diğer satır duruyor: " + text);
             }
 
             // PDF'den resme
