@@ -212,6 +212,18 @@ public static class TextRewriter
         catch (Exception error) when (error is FormatException or InvalidOperationException or NotSupportedException or ArgumentException or IOException) { return []; }
     }
 
+    /// Tanı: motorun bulduğu adaylar ve reddettiği gruplar (neden ile).
+    public static string ParagraphDiagnostics(byte[] document, int pageIndex)
+    {
+        try
+        {
+            var inspection = PdfParagraphEditor.InspectCandidates(KillerPdf.Engine.Documents.PdfDocument.Open(document), pageIndex);
+            return $"aday={inspection.Candidates.Count} [{string.Join(" | ", inspection.Candidates.Select(c => c.Text.Length > 40 ? c.Text[..40] + "…" : c.Text))}] " +
+                   $"ret={inspection.Refusals.Count} [{string.Join(" | ", inspection.Refusals.Select(r => r.RefusalCode + ": " + r.Reason))}]";
+        }
+        catch (Exception error) { return "hata: " + error.Message; }
+    }
+
     /// Paragrafı yeni metinle, aynı kutuda yeniden akıtır. Sığmazsa yazı boyutunu kademeli küçültür (en çok %30).
     public static RewriteResult ReplaceParagraph(byte[] document, int pageIndex, Paragraph paragraph, string newText)
     {

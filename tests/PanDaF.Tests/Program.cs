@@ -223,6 +223,32 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        await Test("Paragraf adayları (tanı)", () =>
+        {
+            var pdfPath = Path.Combine(Folder("paragraf"), "p.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage();
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                var font = new PdfSharp.Drawing.XFont("Arial", 12);
+                new PdfSharp.Drawing.Layout.XTextFormatter(g).DrawString("Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrencilerimizin evden sevdikleri bir kitabı getirmelerini rica ederiz. Etkinlik perşembe günü ikinci derste yapılacaktır.", font, PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XRect(60, 100, 400, 80), PdfSharp.Drawing.XStringFormats.TopLeft);
+                g.DrawString("Saygılarımızla", font, PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 220));
+                doc.Save(pdfPath);
+            }
+            var bytes = File.ReadAllBytes(pdfPath);
+            Console.WriteLine("  BİLGİ " + TextRewriter.ParagraphDiagnostics(bytes, 0));
+            var paragraphs = TextRewriter.Paragraphs(bytes, 0, 842);
+            Check(paragraphs.Count >= 1, $"paragraf adayı var ({paragraphs.Count})");
+            if (paragraphs.Count > 0)
+            {
+                var result = TextRewriter.ReplaceParagraph(bytes, 0, paragraphs[0], "Sevgili veliler, etkinlik cuma günü yapılacaktır. Kitap getirmeyi unutmayın.");
+                using var pdf = UglyToad.PdfPig.PdfDocument.Open(result.Document);
+                var text = string.Join(" ", pdf.GetPage(1).GetWords().Select(w => w.Text));
+                Check(text.Contains("cuma") && !text.Contains("perşembe") && text.Contains("Saygılarımızla"), "paragraf yeniden akıtıldı: " + text);
+            }
+            return Task.CompletedTask;
+        });
+
         await Test("Yedek yazı tipi eşleme (aynı aile, Windows'tan)", () =>
         {
             var (family, bold, italic) = TextRewriter.Parse("ABCDEF+Calibri-Bold", false);
