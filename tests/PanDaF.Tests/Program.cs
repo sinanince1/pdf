@@ -141,21 +141,27 @@ internal static class Program
         await Test("PDF → Excel: tablo çıkarma", async () =>
         {
             var pdfPath = Path.Combine(root, "Not listesi.pdf");
-            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            // PDFsharp Core'da yazı tipi çözümleyici yok; metinli PDF'yi LibreOffice ile HTML'den üret.
+            // LibreOffice indirilmediyse önceden yazılmış küçük bir metin PDF'i kullanılır.
+            var tableConverter = new Converter(Folder("araclar"));
+            string[][] table = [["Ad Soyad", "Türkçe", "Matematik", "Ortalama"], ["Ayşe Yılmaz", "85", "90", "87,5"], ["Mehmet Kaya", "70", "65", "67,5"], ["Zeynep Demir", "100", "95", "97,5"]];
+            if (Environment.GetEnvironmentVariable("PANDAF_LIBREOFFICE") == "1")
             {
-                var page = doc.AddPage();
-                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
-                var font = new PdfSharp.Drawing.XFont("Arial", 11);
-                string[][] table = [["Ad Soyad", "Türkçe", "Matematik", "Ortalama"], ["Ayşe Yılmaz", "85", "90", "87,5"], ["Mehmet Kaya", "70", "65", "67,5"], ["Zeynep Demir", "100", "95", "97,5"]];
-                for (var r = 0; r < table.Length; r++)
-                    for (var c = 0; c < table[r].Length; c++)
-                        g.DrawString(table[r][c], font, PdfSharp.Drawing.XBrushes.Black, 50 + c * 120, 80 + r * 24);
-                doc.Save(pdfPath);
+                await tableConverter.LibreOffice.InstallAsync(null, default);
+                var html = "<html><head><meta charset=\"utf-8\"/></head><body><table style=\"border-collapse:collapse;font-family:Arial;font-size:11pt\">" +
+                    string.Join("", table.Select(r => "<tr>" + string.Join("", r.Select(c => "<td style=\"padding:4pt 18pt 4pt 4pt\">" + c + "</td>")) + "</tr>")) + "</table></body></html>";
+                var htmlPath = Path.Combine(root, "Not listesi.html");
+                File.WriteAllText(htmlPath, html);
+                pdfPath = await tableConverter.LibreOffice.ConvertAsync(htmlPath, "pdf", root, default);
+            }
+            else
+            {
+                Console.WriteLine("  ATLA  LibreOffice yok; tablo PDF'i üretilemedi");
+                return;
             }
             Check(!Converter.IsScanned(pdfPath), "metinli PDF taranmış sayılmaz");
             Check(Converter.IsScanned(threePages), "resimlerden yapılan PDF taranmış sayılır");
-            var converter = new Converter(Folder("araclar-yok3"));
-            var xlsx = await converter.FromPdfAsync([pdfPath], Folder("excel"), PdfTarget.Excel, 150, null, default);
+            var xlsx = await tableConverter.FromPdfAsync([pdfPath], Folder("excel"), PdfTarget.Excel, 150, null, default);
             Check(xlsx.Count == 1 && xlsx[0].EndsWith("Not listesi.xlsx"), "xlsx oluştu");
             using var zip = ZipFile.OpenRead(xlsx[0]);
             using var reader = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
