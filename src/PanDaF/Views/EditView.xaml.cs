@@ -94,7 +94,7 @@ public partial class EditView : UserControl
         {
             pageCount = await Task.Run(() => PdfPages.PageCount(path));
             original = document = await File.ReadAllBytesAsync(path);
-            workPath = Path.Combine(Directory.CreateDirectory(Path.Combine(App.DataFolder, "gecici")).FullName, Guid.NewGuid().ToString("N") + ".pdf");
+            workPath = System.IO.Path.Combine(Directory.CreateDirectory(System.IO.Path.Combine(App.DataFolder, "gecici")).FullName, Guid.NewGuid().ToString("N") + ".pdf");
             await File.WriteAllBytesAsync(workPath, document);
             using var raster = PdfRasterDocument.Open(workPath);
             var first = raster.RenderBitmap(0, RenderDpi);
