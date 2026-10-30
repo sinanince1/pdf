@@ -21,5 +21,6 @@ public partial class HomeView : UserControl
     private void Split_Click(object sender, RoutedEventArgs e) => shell.Navigate(new SplitView(shell), "PDF böl");
     private void Organize_Click(object sender, RoutedEventArgs e) => shell.Navigate(new OrganizeView(shell), "Sayfaları düzenle");
     private void ToPdf_Click(object sender, RoutedEventArgs e) => shell.Navigate(new ToPdfView(shell), "PDF'ye çevir");
+    private void Edit_Click(object sender, RoutedEventArgs e) => shell.Navigate(new EditView(shell), "PDF'yi düzenle");
     private void FromPdf_Click(object sender, RoutedEventArgs e) => shell.Navigate(new FromPdfView(shell), "PDF'den çevir");
 }

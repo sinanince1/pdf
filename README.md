@@ -11,6 +11,7 @@
 | **PDF birleştir** | Birden fazla PDF'yi istediğiniz sırayla tek dosyada toplar. |
 | **PDF böl** | Her sayfayı ayrı PDF yapar, her N sayfada bir böler veya yalnızca istediğiniz sayfaları (ör. `1-3, 5`) alır. |
 | **Sayfaları düzenle** | Sayfaları küçük resimleriyle gösterir; silme, sürükleyerek sıralama ve döndürme. Geri alma desteklidir. |
+| **PDF'yi düzenle** | Sayfanın üzerine yazı kutusu ekleyin, bir alanı beyazla kapatıp üstüne yeni yazı yazın (düzeltme), vurgulayın, kalemle çizin, resim/imza ekleyin. **İSTEK** ve **IB** logoları tek tıkla, istenirse her sayfaya eklenir. Geri alma, taşıma ve boyutlandırma var. Asıl içerik değişmez; sonuç yeni dosya olur. |
 | **PDF'ye çevir** | Word, PowerPoint, Excel dosyalarını ve fotoğrafları PDF yapar. Fotoğraflar A4'e yerleştirilebilir, tek PDF'de birleştirilebilir. |
 | **PDF'den çevir** | PDF'yi Word belgesine, Excel tablosuna, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
 
@@ -20,7 +21,7 @@ PanDaF çalışırken masaüstünde veya bir klasörde bir ya da birkaç dosyay�
 
 | Sürüklediğiniz | Paneldeki seçenekler |
 | --- | --- |
-| Tek PDF | Sayfaları düzenle · Böl · **Word'e çevir** · **Excel'e çevir** · **Resme çevir** |
+| Tek PDF | İçeriği düzenle · Sayfaları düzenle · Böl · **Word'e çevir** · **Excel'e çevir** · **Resme çevir** |
 | Birden fazla PDF | Birleştir · **Word'e çevir** · **Excel'e çevir** · **Resme çevir** |
 | Tek resim veya Word/PowerPoint/Excel | **PDF yap** · PanDaF'ta aç |
 | Birden fazla resim | **Tek PDF yap** · **Ayrı PDF'ler** · PanDaF'ta aç |

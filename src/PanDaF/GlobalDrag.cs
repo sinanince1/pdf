@@ -167,7 +167,7 @@ public sealed class PandaWheel : Window
         var images = files.Count(FileKinds.IsImage);
         var convertible = files.Count(FileKinds.CanConvertToPdf);
         if (pdfs == 1 && files.Count == 1)
-            return [new("organize", "Sayfaları düzenle", "\uE70F"), new("split", "Böl", "\uE8C6"), new("word", "Word'e çevir", "\uE8A5"), new("excel", "Excel'e çevir", "\uE80A"), new("jpg", "Resme çevir", "\uE91B")];
+            return [new("edit", "İçeriği düzenle", "\uE8D2"), new("organize", "Sayfaları düzenle", "\uE70F"), new("split", "Böl", "\uE8C6"), new("word", "Word'e çevir", "\uE8A5"), new("excel", "Excel'e çevir", "\uE80A"), new("jpg", "Resme çevir", "\uE91B")];
         if (pdfs == files.Count)
             return [new("merge", "Birleştir", "\uE8C8"), new("word", "Word'e çevir", "\uE8A5"), new("excel", "Excel'e çevir", "\uE80A"), new("jpg", "Resme çevir", "\uE91B")];
         if (images == files.Count && images > 1)

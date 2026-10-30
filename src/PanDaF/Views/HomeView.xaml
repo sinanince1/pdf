@@ -44,6 +44,15 @@
               <TextBlock Text="Word, PowerPoint, Excel dosyalarını veya fotoğrafları PDF yapın." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
             </StackPanel>
           </Button>
+          <Button x:Name="EditTile" Style="{StaticResource TileButton}" Click="Edit_Click">
+            <StackPanel>
+              <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE8D2;" FontSize="24" Foreground="{StaticResource Primary}"/>
+              </Border>
+              <TextBlock Text="PDF'yi düzenle" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+              <TextBlock Text="Üzerine yazı yazın, bir alanı kapatıp düzeltin, vurgulayın, çizin, resim ve okul logosu ekleyin." Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Button>
           <Button x:Name="FromPdfTile" Style="{StaticResource TileButton}" Click="FromPdf_Click">
             <StackPanel>
               <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">

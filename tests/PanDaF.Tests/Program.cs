@@ -16,6 +16,7 @@ internal static class Program
 
     private static async Task<int> Run()
     {
+        WindowsFontResolver.Install();
         var root = Path.Combine(Path.GetTempPath(), "PanDaFTests-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(root);
         var failures = 0;
@@ -171,6 +172,25 @@ internal static class Program
             Check(xml.Contains("<t xml:space=\"preserve\">Ayşe Yılmaz</t>"), "ad soyad tek hücrede");
             Check(xml.Contains("<c r=\"B2\"><v>85</v></c>") && xml.Contains("<c r=\"D2\"><v>87.5</v></c>"), "sayılar doğru sütunda ve sayı olarak (85, 87,5)");
             Check(xml.Contains("<c r=\"D1\"") && xml.Contains(">Ortalama</t>"), "4 sütun başlığı");
+        });
+
+        await Test("PDF üzerine ekleme (yazı, kapatma, vurgu, çizim, resim)", () =>
+        {
+            var output = Path.Combine(Folder("ekleme"), "ek.pdf");
+            var png = File.ReadAllBytes(portrait);
+            PdfAnnotator.Save(threePages, output,
+            [
+                new Mark { Kind = MarkKind.Whiteout, Page = 0, X = 50, Y = 50, Width = 200, Height = 40 },
+                new Mark { Kind = MarkKind.Text, Page = 0, X = 54, Y = 54, Width = 200, Height = 30, Text = "Merhaba ĞÜŞİÖÇ", FontSize = 14, Bold = true, Color = "#D9480F" },
+                new Mark { Kind = MarkKind.Highlight, Page = 1, X = 50, Y = 100, Width = 200, Height = 20, Color = "#F2C811" },
+                new Mark { Kind = MarkKind.Ink, Page = 2, X = 100, Y = 100, Width = 100, Height = 50, StrokeWidth = 3, Points = [(0, 0), (50, 50), (100, 0)] },
+                new Mark { Kind = MarkKind.Image, Page = 2, X = 300, Y = 300, Width = 90, Height = 140, ImagePng = png },
+            ]);
+            Check(PdfPages.PageCount(output) == 3, "sayfa sayısı korundu");
+            using var pdf = UglyToad.PdfPig.PdfDocument.Open(output);
+            Check(pdf.GetPage(1).Text.Contains("Merhaba ĞÜŞİÖÇ"), "Türkçe yazı gömüldü");
+            Check(pdf.GetPage(3).GetImages().Count() >= 2, "resim eklendi (asıl + yeni)");
+            return Task.CompletedTask;
         });
 
         await Test("İptal yarım dosya bırakmaz", async () =>

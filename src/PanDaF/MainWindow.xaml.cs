@@ -238,6 +238,7 @@ public partial class MainWindow : Window
             case "merge": { var view = new MergeView(this); Navigate(view, "PDF birleştir"); view.Add(files); break; }
             case "split": { var view = new SplitView(this); Navigate(view, "PDF böl"); view.Load(files[0]); break; }
             case "organize": { var view = new OrganizeView(this); Navigate(view, "Sayfaları düzenle"); view.Load(files[0]); break; }
+            case "edit": { var view = new EditView(this); Navigate(view, "PDF'yi düzenle"); view.Load(files[0]); break; }
             default: OpenFiles(files); break;
         }
     }

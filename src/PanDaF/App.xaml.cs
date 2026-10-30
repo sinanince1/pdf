@@ -13,6 +13,7 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        WindowsFontResolver.Install();
         var smokeIndex = Array.IndexOf(e.Args, "--smoke");
         SmokeMode = smokeIndex >= 0;
         DispatcherUnhandledException += (_, args) =>

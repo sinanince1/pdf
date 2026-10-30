@@ -7,8 +7,7 @@
 İlk açılışta Windows "Windows bilgisayarınızı korudu" uyarısı verebilir. **Ek bilgi** → **Yine de çalıştır** seçin. (Uygulama ücretli bir kod imzası taşımadığı için bu uyarı çıkar.)
 
 ### Yeni
-- **PDF → Word daha güçlü:** Word → LibreOffice (doğrudan) → metin çıkarma sırasıyla denenir; taranmış PDF'lerde yazı tanıma.
-- **PDF → Excel:** Tablolar hücrelere aktarılır; ek program gerekmez. Shift panelinde de var.
+- **PDF'yi düzenle:** yazı kutusu, beyazla kapatıp yeniden yazma, vurgu, kalem, resim/imza; İSTEK ve IB logoları tek tıkla (tüm sayfalara da). Shift panelinde "İçeriği düzenle".
 
 ### Araçlar
 - PDF birleştir

@@ -77,6 +77,22 @@ internal static class SmokeTest
             var organized = await Result(window);
             Check(PdfPages.PageCount(organized[0]) == 5, "Sayfa silindi ve sıralandı (5 sayfa)");
 
+            // PDF'yi düzenle
+            var edit = new EditView(window); window.Navigate(edit, "PDF'yi düzenle"); await Settle();
+            Capture(window, Path.Combine(shots, "16-duzenle-bos.png"));
+            edit.Load(merged[0]);
+            await WaitUntil(() => edit.IsLoaded && edit.MarkCount == 0 && ((FrameworkElement)edit.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await Settle(600);
+            edit.SmokeAdd(); await Settle();
+            Capture(window, Path.Combine(shots, "17-duzenle-eklendi.png"));
+            var editTask = edit.SaveAsync();
+            var edited = await Result(window);
+            await editTask;
+            Check(edited.Count == 1 && edited[0].EndsWith(" (düzenlendi).pdf") && PdfPages.PageCount(edited[0]) == 6 && new FileInfo(edited[0]).Length > new FileInfo(merged[0]).Length, "Düzenlenen PDF kaydedildi (6 sayfa, içerik eklendi)");
+            var editedText = await Converter.PdfText(edited[0], default);
+            Check(editedText.Contains("Düzeltilmiş başlık ĞÜŞİÖÇ"), "Eklenen Türkçe yazı PDF'de okunuyor");
+            using (var raster = PdfRasterDocument.Open(edited[0])) Capture(raster.RenderBitmap(0, 72), Path.Combine(shots, "18-duzenlenmis-sayfa.png"));
+
             // PDF'den resme
             var fromPdf = new FromPdfView(window); window.Navigate(fromPdf, "PDF'den çevir"); await Settle();
             fromPdf.Add([threePages]); fromPdf.ToJpg.IsChecked = true; await Settle(600);
@@ -86,7 +102,7 @@ internal static class SmokeTest
             Check(Directory.Exists(pictures[0]) && Directory.GetFiles(pictures[0], "*.jpg").Length == 3, "PDF sayfaları JPG oldu (3 resim)");
 
             // Shift paneli: seçenekler ve görünüm
-            Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["organize", "split", "word", "excel", "jpg"]), "Tek PDF için panel seçenekleri");
+            Check(PandaWheel.For([threePages]).Select(c => c.Id).SequenceEqual(["edit", "organize", "split", "word", "excel", "jpg"]), "Tek PDF için panel seçenekleri");
             Check(PandaWheel.For([threePages, copy]).Select(c => c.Id).SequenceEqual(["merge", "word", "excel", "jpg"]), "Birden fazla PDF için panel seçenekleri");
             Check(PandaWheel.For(images).Select(c => c.Id).SequenceEqual(["pdf-combine", "pdf-separate", "open"]), "Birden fazla resim için panel seçenekleri");
             Check(PandaWheel.For([images[0]]).First().Id == "pdf", "Tek resim için panel: PDF yap");
@@ -173,6 +189,8 @@ internal static class SmokeTest
         await Task.Delay(milliseconds);
         Application.Current.MainWindow?.UpdateLayout();
     }
+
+    private static void Capture(BitmapSource bitmap, string path) => File.WriteAllBytes(path, Images.Png(bitmap));
 
     private static void CaptureToast(string path)
     {
