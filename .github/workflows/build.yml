@@ -151,18 +151,14 @@ jobs:
           dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | tee "$RUNNER_TEMP/motor-testleri.txt"
           echo "::notice title=Motor testleri (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$RUNNER_TEMP/motor-testleri.txt")"
 
-      - name: Derle (Apple Silicon ve Intel)
-        run: |
-          set -e
-          for RID in osx-arm64 osx-x64; do
-            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
-          done
+      - name: Uygulamayı derle (framework-dependent, duman testi için)
+        run: dotnet build src/PanDaF/PanDaF.csproj -c Release -f net10.0
 
       - name: Arayüz duman testi (macOS penceresi)
         run: |
           set +e
           SMOKE="$HOME/smoke"
-          build/osx-arm64/PanDaF --smoke "$SMOKE"
+          dotnet src/PanDaF/bin/Release/net10.0/PanDaF.dll --smoke "$SMOKE"
           CODE=$?
           mkdir -p "$RUNNER_TEMP/smoke"; cp -R "$SMOKE"/. "$RUNNER_TEMP/smoke/" 2>/dev/null
           [ -f "$SMOKE/rapor.txt" ] && cat "$SMOKE/rapor.txt" && echo "::notice title=Arayuz testi (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$SMOKE/rapor.txt")"
@@ -170,10 +166,14 @@ jobs:
           [ -f "$HOME/.local/share/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/.local/share/PanDaF/hata-gunlugu.txt"
           exit $CODE
 
-      - name: .app paketi oluştur ve imzala
+      - name: Publish ve .app paketi oluştur (Apple Silicon ve Intel)
         run: |
           set -e
           VERSION=$(grep -o '<Version>[^<]*' src/PanDaF/PanDaF.csproj | head -1 | sed 's/<Version>//')
+          # Self-contained publish
+          for RID in osx-arm64 osx-x64; do
+            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
+          done
           # Simge: PNG → icns
           mkdir -p build/PanDaF.iconset
           for s in 16 32 64 128 256 512; do
