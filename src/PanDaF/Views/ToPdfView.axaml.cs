@@ -1,15 +1,9 @@
-using System.Windows;
-using System.Windows.Controls;
 using PanDaF.Core;
 
 namespace PanDaF.Views;
 
 public partial class ToPdfView : UserControl
 {
-    private const string Filter =
-        "Desteklenen dosyalar|*.doc;*.docx;*.odt;*.rtf;*.ppt;*.pptx;*.pps;*.ppsx;*.odp;*.xls;*.xlsx;*.ods;*.jpg;*.jpeg;*.jfif;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.heic" +
-        "|Word belgeleri|*.doc;*.docx;*.odt;*.rtf|PowerPoint sunuları|*.ppt;*.pptx;*.pps;*.ppsx;*.odp|Excel tabloları|*.xls;*.xlsx;*.ods" +
-        "|Resimler|*.jpg;*.jpeg;*.jfif;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.heic";
     private readonly MainWindow shell;
     private readonly FileList list = new();
 
@@ -17,7 +11,7 @@ public partial class ToPdfView : UserControl
     {
         this.shell = shell;
         InitializeComponent();
-        var drop = new DropZone("Dosyaları buraya sürükleyin", "Word, PowerPoint, Excel veya resim (JPG, PNG…) dosyaları. Birden fazla seçebilirsiniz.", Filter, multiple: true);
+        var drop = new DropZone("Dosyaları buraya sürükleyin", "Word, PowerPoint, Excel veya resim (JPG, PNG…) dosyaları. Birden fazla seçebilirsiniz.", Pick.Convertible, multiple: true);
         drop.FilesChosen += Add;
         DropHost.Content = drop;
         ListHost.Content = list;
@@ -31,7 +25,7 @@ public partial class ToPdfView : UserControl
         if (usable.Count < files.Count)
         {
             var skipped = files.Where(f => !FileKinds.CanConvertToPdf(f)).Select(Path.GetFileName);
-            shell.Info("Şu dosyalar PDF'ye çevrilemediği için eklenmedi:\n\n" + string.Join("\n", skipped));
+            _ = shell.Info("Şu dosyalar PDF'ye çevrilemediği için eklenmedi:\n\n" + string.Join("\n", skipped));
         }
         list.Add(usable);
     }
@@ -40,41 +34,43 @@ public partial class ToPdfView : UserControl
     {
         var files = list.Files;
         var any = files.Count > 0;
-        DropHost.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        ListPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        DropHost.IsVisible = !any;
+        ListPanel.IsVisible = any;
         var images = files.Count(FileKinds.IsImage);
         var documents = files.Count - images;
-        ImageOptions.Visibility = images > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ImageOptions.IsVisible = images > 0;
         Go.IsEnabled = any;
         if (!any) { Summary.Text = "Çevirmek için dosya ekleyin."; return; }
         var parts = new List<string>();
         if (documents > 0)
         {
             var engine = files.Where(FileKinds.IsOfficeDocument).All(MicrosoftOffice.CanConvert) ? "Microsoft Office ile"
-                : App.Converter.LibreOffice.Ready ? "LibreOffice ile" : "LibreOffice ile (ilk kullanımda bir kez indirilir)";
+                : App.Converter.LibreOffice.Ready ? "LibreOffice ile"
+                : OperatingSystem.IsWindows() ? "LibreOffice ile (ilk kullanımda bir kez indirilir)" : "LibreOffice ile (kurulu olmalı)";
             parts.Add($"{documents} belge {engine} PDF'ye çevrilecek");
         }
         if (images > 0) parts.Add(images == 1 ? "1 resim PDF yapılacak" : Combine.IsChecked == true ? $"{images} resim tek PDF'de birleşecek" : $"{images} resim ayrı ayrı PDF yapılacak");
         Summary.Text = string.Join(" · ", parts) + ".";
     }
 
-    private void Options_Changed(object sender, RoutedEventArgs e)
+    private void Options_Changed(object? sender, RoutedEventArgs e)
     {
         if (NamePanel is null) return;
-        NamePanel.Visibility = Combine.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        NamePanel.IsVisible = Combine.IsChecked == true;
         Update();
     }
 
-    private void AddMore_Click(object sender, RoutedEventArgs e) => Add(DropZone.Pick(Filter, multiple: true));
+    private async void AddMore_Click(object? sender, RoutedEventArgs e) => Add(await Pick.Files(this, Pick.Convertible, multiple: true));
 
-    private async void Go_Click(object sender, RoutedEventArgs e)
+    private async void Go_Click(object? sender, RoutedEventArgs e)
     {
         var files = list.Files.ToList();
         if (files.Count == 0) return;
         var converter = App.Converter;
         if (converter.NeedsLibreOfficeToPdf(files))
         {
-            if (!shell.Confirm("Bu bilgisayarda Microsoft Office bulunamadı. Word, PowerPoint ve Excel dosyalarını çevirmek için ücretsiz LibreOffice bileşeni bir kez indirilecek (yaklaşık 350 MB, birkaç dakika sürebilir). Sonraki kullanımlarda tekrar indirilmez.\n\nİndirilsin mi?"))
+            if (!OperatingSystem.IsWindows()) { await shell.Error(LibreOffice.InstallHint); return; }
+            if (!await shell.Confirm("Bu bilgisayarda Microsoft Office bulunamadı. Word, PowerPoint ve Excel dosyalarını çevirmek için ücretsiz LibreOffice bileşeni bir kez indirilecek (yaklaşık 350 MB, birkaç dakika sürebilir). Sonraki kullanımlarda tekrar indirilmez.\n\nİndirilsin mi?"))
                 return;
             var installed = await shell.RunAsync("LibreOffice hazırlanıyor", async (_, progress, token) => { await converter.LibreOffice.InstallAsync(progress, token); return [converter.LibreOffice.Executable ?? ""]; });
             if (installed is null) return;

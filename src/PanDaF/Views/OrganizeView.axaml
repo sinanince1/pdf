@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.OrganizeView" Focusable="True">
+  <Grid Margin="32,24,32,20" RowDefinitions="Auto,Auto,*,Auto">
+    <StackPanel Margin="8,0,8,0">
+      <TextBlock Classes="title" Text="Sayfaları düzenle"/>
+      <TextBlock Classes="subtitle" Text="Sayfaya tıklayarak seçin. Sırasını değiştirmek için sayfayı tutup başka bir sayfanın üzerine sürükleyin."/>
+    </StackPanel>
+
+    <!-- Araç çubuğu -->
+    <Border Name="Toolbar" Grid.Row="1" IsVisible="False" Margin="8,16,8,8" Padding="10,8" CornerRadius="12" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Classes="ghost" Click="Change_Click" ToolTip.Tip="Başka bir PDF açın">
+          <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconOpen}" Width="14" Height="14"/><TextBlock Text="Başka PDF"/></StackPanel>
+        </Button>
+        <WrapPanel>
+          <Button Classes="ghost" Click="SelectAll_Click" ToolTip.Tip="Tüm sayfaları seç (Ctrl+A)">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconSelectAll}" Width="14" Height="14"/><TextBlock Name="SelectAllText" Text="Tümünü seç"/></StackPanel>
+          </Button>
+          <Button Name="RotateSelected" Classes="ghost" Click="RotateSelected_Click" IsEnabled="False" ToolTip.Tip="Seçili sayfaları sağa döndür">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconRotate}" Width="14" Height="14"/><TextBlock Text="Seçilenleri döndür"/></StackPanel>
+          </Button>
+          <Button Name="DeleteSelected" Classes="ghost" Click="DeleteSelected_Click" IsEnabled="False" ToolTip.Tip="Seçili sayfaları sil (Delete)">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconDelete}" Width="14" Height="14"/><TextBlock Text="Seçilenleri sil"/></StackPanel>
+          </Button>
+          <Button Name="UndoButton" Classes="ghost" Click="Undo_Click" IsEnabled="False" ToolTip.Tip="Son değişikliği geri al (Ctrl+Z)">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconUndo}" Width="14" Height="14"/><TextBlock Text="Geri al"/></StackPanel>
+          </Button>
+          <Button Name="ResetButton" Classes="ghost" Click="Reset_Click" IsEnabled="False" ToolTip.Tip="Tüm değişiklikleri geri al">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconRefresh}" Width="14" Height="14"/><TextBlock Text="Baştan başla"/></StackPanel>
+          </Button>
+        </WrapPanel>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Row="2" Margin="0,4,0,0">
+      <ContentControl Name="DropHost" Focusable="False" Margin="8,16,8,0"/>
+      <ScrollViewer Name="Editor" IsVisible="False" VerticalScrollBarVisibility="Auto" Focusable="False">
+        <WrapPanel Name="PagesPanel"/>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="3" Margin="8,14,8,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="Go" DockPanel.Dock="Right" Classes="primary" Content="Yeni PDF olarak kaydet" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock Name="Summary" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Text="Düzenlemek için bir PDF seçin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

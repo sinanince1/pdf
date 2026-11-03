@@ -90,7 +90,8 @@ public sealed class ExportTransaction : IDisposable
         Directory.CreateDirectory(StagingDirectory);
         if ((File.GetAttributes(StagingDirectory) & FileAttributes.ReparsePoint) != 0)
             throw new IOException("Geçici klasör bir kısayol olamaz.");
-        File.SetAttributes(StagingDirectory, File.GetAttributes(StagingDirectory) | FileAttributes.Hidden);
+        // Baştaki nokta macOS/Linux'ta gizler; Windows'ta öznitelik gerekir.
+        if (OperatingSystem.IsWindows()) File.SetAttributes(StagingDirectory, File.GetAttributes(StagingDirectory) | FileAttributes.Hidden);
     }
 
     public IReadOnlyList<string> Publish(IEnumerable<string> outputs, CancellationToken token)

@@ -1,19 +1,20 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+using Avalonia.Collections;
+using Avalonia.Controls.Shapes;
+using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using PanDaF.Core;
+using SkiaSharp;
 
 namespace PanDaF.Views;
 
-/// PDF üzerine yazı, kapatma, vurgu, çizim, resim ve logo ekleme. Asıl içerik değişmez;
-/// eklenenler kaydederken sayfanın üstüne işlenir.
+/// PDF üzerine yazı, kapatma, vurgu, çizim, resim ve logo ekleme; var olan yazıyı yerinde değiştirme.
+/// Asıl dosya değişmez; sonuç yeni bir PDF olarak kaydedilir.
 public partial class EditView : UserControl
 {
-    private const string Filter = "PDF dosyaları|*.pdf";
     private const int RenderDpi = 144;
+    private static readonly FontFamily TextFont = new("Arial, Liberation Sans, Helvetica, sans-serif");
     private readonly MainWindow shell;
     private readonly List<Mark> marks = [];
     private readonly Stack<(List<Mark> Marks, byte[] Document)> history = new();
@@ -27,16 +28,17 @@ public partial class EditView : UserControl
     private List<Paragraph> paragraphs = [];
     private Paragraph? hoveredParagraph;
     private TextBox? paragraphBox;
-    private readonly Dictionary<int, BitmapSource> pages = [];
+    private readonly Dictionary<int, (SKBitmap Skia, Bitmap Image)> pages = [];
     private readonly Dictionary<int, Size> sizes = [];
     private string? file;
     private int pageCount, page;
     private double zoom = 1;
     private Mark? selected, dragging, drawing;
-    private Point dragStart; private Mark? dragOriginal; private bool resizing;
+    private Point dragStart; private Mark? dragOriginal; private bool resizing, moved;
     private TextBox? editor;
     private string color = "#000000";
     private readonly Dictionary<string, Border> swatches = [];
+    private double overlayWidth;
 
     private enum Tool { Select, Rewrite, ParagraphEdit, Text, Whiteout, Highlight, Pen }
     private Tool Current => RewriteTool.IsChecked == true ? Tool.Rewrite : ParagraphTool.IsChecked == true ? Tool.ParagraphEdit : TextTool.IsChecked == true ? Tool.Text : WhiteoutTool.IsChecked == true ? Tool.Whiteout : HighlightTool.IsChecked == true ? Tool.Highlight : PenTool.IsChecked == true ? Tool.Pen : Tool.Select;
@@ -45,13 +47,19 @@ public partial class EditView : UserControl
     {
         this.shell = shell;
         InitializeComponent();
-        var drop = new DropZone("Düzenlemek istediğiniz PDF'yi buraya sürükleyin", "Üzerine yazı, kapatma, vurgu, çizim, resim ve okul logoları ekleyebilirsiniz.", Filter, multiple: false);
+        var drop = new DropZone("Düzenlemek istediğiniz PDF'yi buraya sürükleyin", "Var olan yazıyı değiştirebilir; üzerine yazı, kapatma, vurgu, çizim, resim ve okul logoları ekleyebilirsiniz.", Pick.Pdf, multiple: false);
         drop.FilesChosen += files => Load(files[0]);
         DropHost.Content = drop;
         DropHelper.Attach(this, files => { if (file is null) Load(files[0]); });
         foreach (var hex in new[] { "#000000", "#D9480F", "#1F5FBF", "#16805C", "#F2C811" }) AddSwatch(hex);
         foreach (var tool in new[] { SelectTool, RewriteTool, ParagraphTool, TextTool, WhiteoutTool, HighlightTool, PenTool })
-            tool.Checked += (_, _) => ToolChanged();
+            tool.IsCheckedChanged += (s, _) => { if ((s as RadioButton)?.IsChecked == true) ToolChanged(); };
+        Overlay.PointerPressed += Overlay_Down;
+        Overlay.PointerMoved += Overlay_Move;
+        Overlay.PointerReleased += Overlay_Up;
+        Overlay.PointerExited += (_, _) => { if (dragging is not null && drawing is null && !moved) dragging = null; };
+        KeyDown += View_KeyDown;
+        DetachedFromVisualTree += (_, _) => { try { if (File.Exists(workPath)) File.Delete(workPath); } catch (IOException) { } catch (UnauthorizedAccessException) { } };
     }
 
     public int MarkCount => marks.Count;
@@ -60,11 +68,11 @@ public partial class EditView : UserControl
     {
         var border = new Border
         {
-            Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Margin = new Thickness(3, 0, 3, 0), Cursor = Cursors.Hand,
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)), BorderBrush = Ui.Brush("Line"), BorderThickness = new Thickness(hex == color ? 3 : 1),
-            ToolTip = "Renk",
+            Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Margin = new Thickness(3, 0, 3, 0), Cursor = new Cursor(StandardCursorType.Hand),
+            Background = Ui.BrushOf(hex), BorderBrush = Ui.Brush("Line"), BorderThickness = new Thickness(hex == color ? 3 : 1),
         };
-        border.MouseLeftButtonDown += (_, e) => { e.Handled = true; SetColor(hex); };
+        ToolTip.SetTip(border, "Renk");
+        border.PointerPressed += (_, e) => { e.Handled = true; SetColor(hex); };
         swatches[hex] = border;
         Swatches.Children.Add(border);
     }
@@ -79,13 +87,13 @@ public partial class EditView : UserControl
     private void ToolChanged()
     {
         if (PenOptions is null) return;
-        PenOptions.Visibility = Current == Tool.Pen ? Visibility.Visible : Visibility.Collapsed;
-        TextOptions.Visibility = Current is Tool.Text or Tool.Select ? Visibility.Visible : Visibility.Collapsed;
+        PenOptions.IsVisible = Current == Tool.Pen;
+        TextOptions.IsVisible = Current is Tool.Text or Tool.Select;
         if (Current == Tool.Highlight && color == "#000000") SetColor("#F2C811");
         if (Current != Tool.Select) { EndEdit(); selected = null; }
         if (Current != Tool.Rewrite) EndRewrite(commit: false);
         if (Current != Tool.ParagraphEdit) EndParagraph(commit: false);
-        Overlay.Cursor = Current == Tool.Select ? Cursors.Arrow : Current is Tool.Text or Tool.Rewrite or Tool.ParagraphEdit ? Cursors.IBeam : Cursors.Cross;
+        Overlay.Cursor = new Cursor(Current == Tool.Select ? StandardCursorType.Arrow : Current is Tool.Text or Tool.Rewrite or Tool.ParagraphEdit ? StandardCursorType.Ibeam : StandardCursorType.Cross);
         if (Current == Tool.ParagraphEdit && file is not null) _ = LoadParagraphs(); else Redraw();
     }
 
@@ -93,45 +101,53 @@ public partial class EditView : UserControl
 
     public async void Load(string path)
     {
-        if (!FileKinds.IsPdf(path)) { shell.Info("Lütfen bir PDF dosyası seçin."); return; }
+        if (!FileKinds.IsPdf(path)) { await shell.Info("Lütfen bir PDF dosyası seçin."); return; }
         try
         {
             pageCount = await Task.Run(() => PdfPages.PageCount(path));
             original = document = await File.ReadAllBytesAsync(path);
             workPath = System.IO.Path.Combine(Directory.CreateDirectory(System.IO.Path.Combine(App.DataFolder, "gecici")).FullName, Guid.NewGuid().ToString("N") + ".pdf");
             await File.WriteAllBytesAsync(workPath, document);
-            using var raster = PdfRasterDocument.Open(workPath);
-            var first = raster.RenderBitmap(0, RenderDpi);
-            pages[0] = first; sizes[0] = new Size(first.PixelWidth * 72.0 / RenderDpi, first.PixelHeight * 72.0 / RenderDpi);
+            var work = workPath;
+            var first = await Task.Run(() => { using var raster = PdfRasterDocument.Open(work); return raster.RenderBitmap(0, RenderDpi); });
+            Cache(0, first);
         }
-        catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException) { shell.Error(error is UserFacingException ? error.Message : "Dosya okunamadı: " + error.Message); return; }
+        catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException) { await shell.Error(error is UserFacingException ? error.Message : "Dosya okunamadı: " + error.Message); return; }
         file = path; page = 0; marks.Clear(); history.Clear(); selected = null; lines = [];
-        Unloaded += (_, _) => { try { if (File.Exists(workPath)) File.Delete(workPath); } catch (IOException) { } catch (UnauthorizedAccessException) { } };
-        DropHost.Visibility = Visibility.Collapsed;
-        Toolbar.Visibility = PageArea.Visibility = Footer.Visibility = Visibility.Visible;
+        DropHost.IsVisible = false;
+        Toolbar.IsVisible = PageArea.IsVisible = Footer.IsVisible = true;
         await ShowPage(0);
         ZoomFit_Click(this, new RoutedEventArgs());
         Focus();
+    }
+
+    private void Cache(int index, SKBitmap skia)
+    {
+        if (pages.TryGetValue(index, out var old)) { old.Skia.Dispose(); }
+        pages[index] = (skia, Pictures.ToBitmap(skia));
+        sizes[index] = new Size(skia.Width * 72.0 / RenderDpi, skia.Height * 72.0 / RenderDpi);
+        if (pages.Count > 12)
+            foreach (var key in pages.Keys.Where(k => Math.Abs(k - index) > 5).ToList()) { pages[key].Skia.Dispose(); pages.Remove(key); }
     }
 
     private async Task ShowPage(int index)
     {
         if (file is null) return;
         page = Math.Clamp(index, 0, pageCount - 1);
-        if (!pages.TryGetValue(page, out var bitmap))
+        if (!pages.ContainsKey(page))
         {
             var path = workPath; var n = page;
             try
             {
-                bitmap = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); return raster.RenderBitmap(n, RenderDpi); });
+                var skia = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); return raster.RenderBitmap(n, RenderDpi); });
+                Cache(page, skia);
             }
-            catch (UserFacingException error) { shell.Error(error.Message); return; }
-            pages[page] = bitmap; sizes[page] = new Size(bitmap.PixelWidth * 72.0 / RenderDpi, bitmap.PixelHeight * 72.0 / RenderDpi);
-            if (pages.Count > 12) foreach (var old in pages.Keys.Where(k => Math.Abs(k - page) > 5).ToList()) pages.Remove(old);
+            catch (UserFacingException error) { await shell.Error(error.Message); return; }
         }
-        PageImage.Source = bitmap;
+        PageImage.Source = pages[page].Image;
         var size = sizes[page];
         PageImage.Width = Overlay.Width = size.Width; PageImage.Height = Overlay.Height = size.Height;
+        overlayWidth = size.Width;
         PageLabel.Text = $"Sayfa {page + 1} / {pageCount}";
         EndEdit(); EndRewrite(commit: false); EndParagraph(commit: false); selected = null;
         await LoadLines();
@@ -142,27 +158,28 @@ public partial class EditView : UserControl
     private void SetZoom(double value)
     {
         zoom = Math.Clamp(value, .25, 4);
-        Zoom.ScaleX = Zoom.ScaleY = zoom;
+        ZoomHost.LayoutTransform = new ScaleTransform(zoom, zoom);
         ZoomLabel.Text = $"{Math.Round(zoom * 100)}%";
         Redraw();
     }
 
-    private void ZoomFit_Click(object sender, RoutedEventArgs e)
+    private void ZoomFit_Click(object? sender, RoutedEventArgs e)
     {
-        if (!sizes.TryGetValue(page, out var size) || Scroller.ViewportWidth < 50) return;
-        SetZoom((Scroller.ViewportWidth - 60) / size.Width);
+        if (!sizes.TryGetValue(page, out var size) || Scroller.Viewport.Width < 50) return;
+        SetZoom((Scroller.Viewport.Width - 60) / size.Width);
     }
-    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(zoom * 1.2);
-    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(zoom / 1.2);
+    private void ZoomIn_Click(object? sender, RoutedEventArgs e) => SetZoom(zoom * 1.2);
+    private void ZoomOut_Click(object? sender, RoutedEventArgs e) => SetZoom(zoom / 1.2);
     private bool fitted;
-    private void Scroller_SizeChanged(object sender, SizeChangedEventArgs e) { if (!fitted && file is not null) { fitted = true; ZoomFit_Click(this, new RoutedEventArgs()); } }
-    private async void PrevPage_Click(object sender, RoutedEventArgs e) => await ShowPage(page - 1);
-    private async void NextPage_Click(object sender, RoutedEventArgs e) => await ShowPage(page + 1);
+    private void Scroller_SizeChanged(object? sender, SizeChangedEventArgs e) { if (!fitted && file is not null) { fitted = true; ZoomFit_Click(this, new RoutedEventArgs()); } }
+    private async void PrevPage_Click(object? sender, RoutedEventArgs e) => await ShowPage(page - 1);
+    private async void NextPage_Click(object? sender, RoutedEventArgs e) => await ShowPage(page + 1);
 
     // ----- Çizim -----
 
-    private Point Pt(MouseEventArgs e) => e.GetPosition(Overlay);
     private IEnumerable<Mark> OnPage => marks.Where(m => m.Page == page);
+    private static AvaloniaList<double> Dashes(double a, double b) => [a, b];
+    private static IBrush Argb(byte a, byte r, byte g, byte b) => new SolidColorBrush(Color.FromArgb(a, r, g, b));
 
     private void Redraw()
     {
@@ -170,28 +187,24 @@ public partial class EditView : UserControl
         foreach (var mark in OnPage) Overlay.Children.Add(Element(mark));
         if (selected is not null && selected.Page == page && selected != drawing)
         {
-            var outline = new Rectangle { Width = Math.Max(1, selected.Width), Height = Math.Max(1, selected.Height), Stroke = Ui.Brush("Primary"), StrokeThickness = 1.5 / zoom, StrokeDashArray = new DoubleCollection { 4, 3 }, IsHitTestVisible = false };
+            var outline = new Rectangle { Width = Math.Max(1, selected.Width), Height = Math.Max(1, selected.Height), Stroke = Ui.Brush("Primary"), StrokeThickness = 1.5 / zoom, StrokeDashArray = Dashes(4, 3), IsHitTestVisible = false };
             Canvas.SetLeft(outline, selected.X); Canvas.SetTop(outline, selected.Y); Overlay.Children.Add(outline);
             var grip = 10 / zoom;
             var handle = new Rectangle { Width = grip, Height = grip, Fill = Ui.Brush("Primary"), Stroke = Brushes.White, StrokeThickness = 1 / zoom, IsHitTestVisible = false };
             Canvas.SetLeft(handle, selected.X + selected.Width - grip / 2); Canvas.SetTop(handle, selected.Y + selected.Height - grip / 2); Overlay.Children.Add(handle);
         }
         if (Current == Tool.Rewrite)
-        {
             foreach (var line in lines)
             {
-                var box = new Rectangle { Width = Math.Max(1, line.Width + 4), Height = Math.Max(1, line.Height + 4), Fill = line == hoveredLine ? new SolidColorBrush(Color.FromArgb(50, 217, 72, 15)) : Brushes.Transparent, Stroke = line == hoveredLine ? Ui.Brush("Primary") : new SolidColorBrush(Color.FromArgb(90, 31, 95, 191)), StrokeThickness = 1 / zoom, StrokeDashArray = new DoubleCollection { 3, 2 }, IsHitTestVisible = false };
+                var box = new Rectangle { Width = Math.Max(1, line.Width + 4), Height = Math.Max(1, line.Height + 4), Fill = line == hoveredLine ? Argb(50, 217, 72, 15) : Brushes.Transparent, Stroke = line == hoveredLine ? Ui.Brush("Primary") : Argb(90, 31, 95, 191), StrokeThickness = 1 / zoom, StrokeDashArray = Dashes(3, 2), IsHitTestVisible = false };
                 Canvas.SetLeft(box, line.X - 2); Canvas.SetTop(box, line.Y - 2); Overlay.Children.Add(box);
             }
-        }
         if (Current == Tool.ParagraphEdit)
-        {
             foreach (var para in paragraphs)
             {
-                var box = new Rectangle { Width = Math.Max(1, para.Width + 6), Height = Math.Max(1, para.Height + 6), Fill = para == hoveredParagraph ? new SolidColorBrush(Color.FromArgb(40, 217, 72, 15)) : Brushes.Transparent, Stroke = para == hoveredParagraph ? Ui.Brush("Primary") : new SolidColorBrush(Color.FromArgb(110, 22, 128, 92)), StrokeThickness = 1.2 / zoom, StrokeDashArray = new DoubleCollection { 4, 2 }, IsHitTestVisible = false };
+                var box = new Rectangle { Width = Math.Max(1, para.Width + 6), Height = Math.Max(1, para.Height + 6), Fill = para == hoveredParagraph ? Argb(40, 217, 72, 15) : Brushes.Transparent, Stroke = para == hoveredParagraph ? Ui.Brush("Primary") : Argb(110, 22, 128, 92), StrokeThickness = 1.2 / zoom, StrokeDashArray = Dashes(4, 2), IsHitTestVisible = false };
                 Canvas.SetLeft(box, para.X - 3); Canvas.SetTop(box, para.Y - 3); Overlay.Children.Add(box);
             }
-        }
         if (paragraphBox is not null) Overlay.Children.Add(paragraphBox);
         if (rewriteBox is not null) Overlay.Children.Add(rewriteBox);
         if (editor is not null) Overlay.Children.Add(editor);
@@ -204,23 +217,19 @@ public partial class EditView : UserControl
             : string.Join(" · ", new[] { marks.Count > 0 ? $"{marks.Count} ekleme" : "", changedText ? "yazı değiştirildi" : "" }.Where(t => t.Length > 0));
     }
 
-    private static Brush BrushOf(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-
-    private FrameworkElement Element(Mark mark)
+    private Control Element(Mark mark)
     {
-        FrameworkElement element;
+        Control element;
         switch (mark.Kind)
         {
             case MarkKind.Whiteout:
-                element = new Rectangle { Width = mark.Width, Height = mark.Height, Fill = string.IsNullOrEmpty(mark.Color) || mark.Color == "#000000" ? Brushes.White : BrushOf(mark.Color), Stroke = new SolidColorBrush(Color.FromArgb(120, 150, 150, 150)), StrokeThickness = .7 / zoom, StrokeDashArray = new DoubleCollection { 3, 3 } };
+                element = new Rectangle { Width = mark.Width, Height = mark.Height, Fill = string.IsNullOrEmpty(mark.Color) || mark.Color == "#000000" ? Brushes.White : Ui.BrushOf(mark.Color), Stroke = Argb(120, 150, 150, 150), StrokeThickness = .7 / zoom, StrokeDashArray = Dashes(3, 3) };
                 break;
             case MarkKind.Highlight:
-                element = new Rectangle { Width = mark.Width, Height = mark.Height, Fill = BrushOf(mark.Color), Opacity = .35 };
+                element = new Rectangle { Width = mark.Width, Height = mark.Height, Fill = Ui.BrushOf(mark.Color), Opacity = .35 };
                 break;
             case MarkKind.Ink:
-                var line = new Polyline { Stroke = BrushOf(mark.Color), StrokeThickness = mark.StrokeWidth, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
-                foreach (var (x, y) in mark.Points) line.Points.Add(new Point(x, y));
-                element = line;
+                element = new Polyline { Stroke = Ui.BrushOf(mark.Color), StrokeThickness = mark.StrokeWidth, StrokeJoin = PenLineJoin.Round, StrokeLineCap = PenLineCap.Round, Points = mark.Points.Select(q => new Point(q.X, q.Y)).ToList() };
                 break;
             case MarkKind.Image:
                 var image = new Image { Width = mark.Width, Height = mark.Height, Stretch = Stretch.Fill };
@@ -228,8 +237,8 @@ public partial class EditView : UserControl
                 element = image;
                 break;
             default:
-                var text = new TextBlock { Text = mark.Text, FontFamily = new FontFamily("Arial"), FontSize = mark.FontSize, FontWeight = mark.Bold ? FontWeights.Bold : FontWeights.Normal, Foreground = BrushOf(mark.Color), TextWrapping = TextWrapping.Wrap, Width = Math.Max(10, mark.Width - 4), Margin = new Thickness(2) };
-                element = new Border { Width = mark.Width, MinHeight = mark.Height, Child = text, Background = Brushes.Transparent, Visibility = editor is not null && editor.Tag == mark ? Visibility.Hidden : Visibility.Visible };
+                var text = new TextBlock { Text = mark.Text, FontFamily = TextFont, FontSize = mark.FontSize, FontWeight = mark.Bold ? FontWeight.Bold : FontWeight.Normal, Foreground = Ui.BrushOf(mark.Color), TextWrapping = TextWrapping.Wrap, Width = Math.Max(10, mark.Width - 4), Margin = new Thickness(2) };
+                element = new Border { Width = mark.Width, MinHeight = mark.Height, Child = text, Background = Brushes.Transparent, Opacity = editor is not null && editor.Tag == mark ? 0 : 1 };
                 break;
         }
         element.IsHitTestVisible = false;
@@ -237,26 +246,22 @@ public partial class EditView : UserControl
         return element;
     }
 
-    private static readonly Dictionary<byte[], BitmapSource> decoded = new(ReferenceEqualityComparer.Instance);
-    private static BitmapSource Decode(byte[] png)
-    {
-        if (decoded.TryGetValue(png, out var cached)) return cached;
-        var image = new BitmapImage();
-        using (var stream = new MemoryStream(png)) { image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit(); }
-        image.Freeze();
-        return decoded[png] = image;
-    }
+    private static readonly Dictionary<byte[], Bitmap> decoded = new(ReferenceEqualityComparer.Instance);
+    private static Bitmap Decode(byte[] png) => decoded.TryGetValue(png, out var cached) ? cached : decoded[png] = Pictures.FromPng(png);
 
-    // ----- Fare -----
+    // ----- İşaretçi -----
 
     private Mark? Hit(Point p) => OnPage.Reverse().FirstOrDefault(m => p.X >= m.X - 3 && p.X <= m.X + m.Width + 3 && p.Y >= m.Y - 3 && p.Y <= m.Y + m.Height + 3);
     private bool OnGrip(Mark m, Point p) => Math.Abs(p.X - (m.X + m.Width)) <= 8 / zoom && Math.Abs(p.Y - (m.Y + m.Height)) <= 8 / zoom;
+    private static bool InTextBox(object? source) => source is Visual v && v.FindAncestorOfType<TextBox>(true) is not null;
+    private static bool Contains(Mark m, Point p) => p.X >= m.X && p.X <= m.X + m.Width && p.Y >= m.Y && p.Y <= m.Y + m.Height;
 
-    private void Overlay_Down(object sender, MouseButtonEventArgs e)
+    private void Overlay_Down(object? sender, PointerPressedEventArgs e)
     {
-        if (file is null) return;
+        if (file is null || !e.GetCurrentPoint(Overlay).Properties.IsLeftButtonPressed) return;
+        if (InTextBox(e.Source)) return;
         Focus();
-        var p = Pt(e);
+        var p = e.GetPosition(Overlay);
         if (editor is not null) { if (selected is not null && Contains(selected, p)) return; EndEdit(); }
         switch (Current)
         {
@@ -264,7 +269,7 @@ public partial class EditView : UserControl
                 var line = lines.FirstOrDefault(l => p.X >= l.X - 2 && p.X <= l.X + l.Width + 2 && p.Y >= l.Y - 2 && p.Y <= l.Y + l.Height + 2);
                 if (rewriteBox is not null) { EndRewrite(commit: true); if (line is null) return; }
                 if (line is null) return;
-                BeginRewrite(line);
+                _ = BeginRewrite(line);
                 break;
             case Tool.ParagraphEdit:
                 var para = paragraphs.FirstOrDefault(q => p.X >= q.X - 3 && p.X <= q.X + q.Width + 3 && p.Y >= q.Y - 3 && p.Y <= q.Y + q.Height + 3);
@@ -277,33 +282,31 @@ public partial class EditView : UserControl
                 if (hit is null) { selected = null; Redraw(); return; }
                 selected = hit;
                 if (e.ClickCount == 2 && hit.Kind == MarkKind.Text) { Redraw(); BeginEdit(hit); return; }
-                dragging = hit; dragOriginal = hit.Clone(); dragStart = p; resizing = OnGrip(hit, p);
-                Overlay.CaptureMouse(); Redraw();
+                dragging = hit; dragOriginal = hit.Clone(); dragStart = p; resizing = OnGrip(hit, p); moved = false;
+                e.Pointer.Capture(Overlay); Redraw();
                 break;
             case Tool.Text:
                 var size = ChosenFontSize();
-                var text = new Mark { Kind = MarkKind.Text, Page = page, X = p.X, Y = p.Y - size * .8, Width = Math.Min(260, Overlay.Width - p.X), Height = size * 1.6 + 4, FontSize = size, Bold = BoldBox.IsChecked == true, Color = color == "#F2C811" ? "#000000" : color };
+                var text = new Mark { Kind = MarkKind.Text, Page = page, X = p.X, Y = p.Y - size * .8, Width = Math.Min(260, overlayWidth - p.X), Height = size * 1.6 + 4, FontSize = size, Bold = BoldBox.IsChecked == true, Color = color == "#F2C811" ? "#000000" : color };
                 Remember(); marks.Add(text); selected = text; Redraw(); BeginEdit(text);
                 SelectTool.IsChecked = true;
                 break;
             case Tool.Whiteout or Tool.Highlight:
                 drawing = new Mark { Kind = Current == Tool.Whiteout ? MarkKind.Whiteout : MarkKind.Highlight, Page = page, X = p.X, Y = p.Y, Color = Current == Tool.Whiteout ? "#FFFFFF" : color };
-                dragStart = p; Overlay.CaptureMouse();
+                dragStart = p; e.Pointer.Capture(Overlay);
                 break;
             case Tool.Pen:
                 drawing = new Mark { Kind = MarkKind.Ink, Page = page, X = 0, Y = 0, Color = color, StrokeWidth = PenWidth.Value };
                 drawing.Points.Add((p.X, p.Y));
-                Overlay.CaptureMouse();
+                e.Pointer.Capture(Overlay);
                 Remember(); marks.Add(drawing); Redraw();
                 break;
         }
     }
 
-    private static bool Contains(Mark m, Point p) => p.X >= m.X && p.X <= m.X + m.Width && p.Y >= m.Y && p.Y <= m.Y + m.Height;
-
-    private void Overlay_Move(object sender, MouseEventArgs e)
+    private void Overlay_Move(object? sender, PointerEventArgs e)
     {
-        var p = Pt(e);
+        var p = e.GetPosition(Overlay);
         if (Current == Tool.Rewrite)
         {
             var over = lines.FirstOrDefault(l => p.X >= l.X - 2 && p.X <= l.X + l.Width + 2 && p.Y >= l.Y - 2 && p.Y <= l.Y + l.Height + 2);
@@ -316,12 +319,13 @@ public partial class EditView : UserControl
             if (over != hoveredParagraph) { hoveredParagraph = over; Redraw(); }
             return;
         }
-        if (Current == Tool.Select && dragging is null) Overlay.Cursor = selected is not null && OnGrip(selected, p) ? Cursors.SizeNWSE : Hit(p) is not null ? Cursors.SizeAll : Cursors.Arrow;
-        if (e.LeftButton != MouseButtonState.Pressed) return;
+        if (Current == Tool.Select && dragging is null)
+            Overlay.Cursor = new Cursor(selected is not null && OnGrip(selected, p) ? StandardCursorType.BottomRightCorner : Hit(p) is not null ? StandardCursorType.SizeAll : StandardCursorType.Arrow);
+        if (!e.GetCurrentPoint(Overlay).Properties.IsLeftButtonPressed) return;
         if (drawing is { Kind: MarkKind.Ink })
         {
             drawing.Points.Add((p.X, p.Y));
-            if (Overlay.Children.Count > 0 && Overlay.Children[^1] is Polyline line) line.Points.Add(p); else Redraw();
+            if (Overlay.Children.Count > 0 && Overlay.Children[^1] is Polyline line) line.Points = drawing.Points.Select(q => new Point(q.X, q.Y)).ToList(); else Redraw();
             return;
         }
         if (drawing is not null)
@@ -351,11 +355,9 @@ public partial class EditView : UserControl
         Redraw();
     }
 
-    private bool moved;
-
-    private void Overlay_Up(object sender, MouseButtonEventArgs e)
+    private void Overlay_Up(object? sender, PointerReleasedEventArgs e)
     {
-        Overlay.ReleaseMouseCapture();
+        e.Pointer.Capture(null);
         if (drawing is not null)
         {
             if (drawing.Kind == MarkKind.Ink)
@@ -375,8 +377,6 @@ public partial class EditView : UserControl
         dragging = null; dragOriginal = null; moved = false; resizing = false;
     }
 
-    private void Overlay_Leave(object sender, MouseEventArgs e) { if (!Overlay.IsMouseCaptured) { dragging = null; } }
-
     // ----- Yazı düzenleme -----
 
     private double ChosenFontSize() => double.TryParse((FontSizeBox.SelectedItem as ComboBoxItem)?.Content?.ToString(), out var v) ? v : 14;
@@ -386,16 +386,17 @@ public partial class EditView : UserControl
         EndEdit();
         editor = new TextBox
         {
-            Tag = mark, Text = mark.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Arial"), FontSize = mark.FontSize,
-            FontWeight = mark.Bold ? FontWeights.Bold : FontWeights.Normal, Foreground = BrushOf(mark.Color), Width = mark.Width, MinHeight = mark.Height,
-            Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(1 / zoom), BorderBrush = Ui.Brush("Primary"), Background = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+            Tag = mark, Text = mark.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontFamily = TextFont, FontSize = mark.FontSize,
+            FontWeight = mark.Bold ? FontWeight.Bold : FontWeight.Normal, Foreground = Ui.BrushOf(mark.Color), Width = mark.Width, MinHeight = mark.Height,
+            Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(1 / zoom), BorderBrush = Ui.Brush("Primary"), Background = Argb(200, 255, 255, 255), CornerRadius = new CornerRadius(0),
         };
-        editor.TextChanged += (_, _) => { mark.Text = editor.Text; editor.UpdateLayout(); mark.Height = Math.Max(mark.FontSize * 1.6 + 4, editor.ActualHeight); };
-        editor.LostKeyboardFocus += (_, _) => EndEdit();
-        editor.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { EndEdit(); e.Handled = true; } };
-        Canvas.SetLeft(editor, mark.X); Canvas.SetTop(editor, mark.Y);
+        var box = editor;
+        box.TextChanged += (_, _) => { mark.Text = box.Text ?? ""; box.UpdateLayout(); mark.Height = Math.Max(mark.FontSize * 1.6 + 4, box.Bounds.Height); };
+        box.LostFocus += (_, _) => { if (editor == box) EndEdit(); };
+        box.AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape) { EndEdit(); e.Handled = true; } }, RoutingStrategies.Tunnel);
+        Canvas.SetLeft(box, mark.X); Canvas.SetTop(box, mark.Y);
         Redraw();
-        editor.Focus(); editor.CaretIndex = editor.Text.Length;
+        box.Focus(); box.CaretIndex = box.Text?.Length ?? 0;
     }
 
     private void EndEdit()
@@ -404,48 +405,47 @@ public partial class EditView : UserControl
         var box = editor; editor = null;
         if (box.Tag is Mark mark)
         {
-            mark.Text = box.Text;
+            mark.Text = box.Text ?? "";
             if (string.IsNullOrWhiteSpace(mark.Text)) { marks.Remove(mark); if (selected == mark) selected = null; }
         }
         Redraw();
         Focus();
     }
 
-    private void TextOption_Changed(object sender, RoutedEventArgs e)
+    private void FontSize_Changed(object? sender, SelectionChangedEventArgs e) => TextOption_Changed(sender, e);
+
+    private void TextOption_Changed(object? sender, RoutedEventArgs e)
     {
         if (selected is { Kind: MarkKind.Text })
         {
             Remember(); selected.FontSize = ChosenFontSize(); selected.Bold = BoldBox.IsChecked == true;
-            if (editor?.Tag == selected) { editor.FontSize = selected.FontSize; editor.FontWeight = selected.Bold ? FontWeights.Bold : FontWeights.Normal; }
+            if (editor?.Tag == selected) { editor.FontSize = selected.FontSize; editor.FontWeight = selected.Bold ? FontWeight.Bold : FontWeight.Normal; }
             Redraw();
         }
     }
 
     // ----- Resim ve logolar -----
 
-    private void AddImage_Click(object sender, RoutedEventArgs e)
+    private async void AddImage_Click(object? sender, RoutedEventArgs e)
     {
         if (file is null) return;
-        var picked = DropZone.Pick("Resimler|*.png;*.jpg;*.jpeg;*.bmp;*.gif", multiple: false);
+        var picked = await Pick.Files(this, Pick.Images, multiple: false);
         if (picked.Length == 0) return;
         try
         {
-            var bitmap = Images.Load(picked[0]);
+            using var bitmap = Images.Load(picked[0]);
             var png = Images.Png(bitmap);
             var size = sizes[page];
-            var width = Math.Min(size.Width * .5, 200.0); var height = width * bitmap.PixelHeight / Math.Max(1, bitmap.PixelWidth);
+            var width = Math.Min(size.Width * .5, 200.0); var height = width * bitmap.Height / Math.Max(1, bitmap.Width);
+            Remember();
             AddImage(png, (size.Width - width) / 2, (size.Height - height) / 2, width, height, page);
+            SelectTool.IsChecked = true; Redraw();
         }
-        catch (UserFacingException error) { shell.Error(error.Message); }
+        catch (UserFacingException error) { await shell.Error(error.Message); }
     }
 
-    private static byte[] Resource(string name)
-    {
-        using var stream = Application.GetResourceStream(new Uri($"pack://application:,,,/Assets/{name}"))!.Stream;
-        using var memory = new MemoryStream(); stream.CopyTo(memory); return memory.ToArray();
-    }
-    private static readonly Lazy<byte[]> IstekLogo = new(() => Resource("LogoIstek.png"));
-    private static readonly Lazy<byte[]> IbLogo = new(() => Resource("LogoIB.png"));
+    private static readonly Lazy<byte[]> IstekLogo = new(() => Pictures.Asset("LogoIstek.png"));
+    private static readonly Lazy<byte[]> IbLogo = new(() => Pictures.Asset("LogoIB.png"));
     private const double LogoHeight = 54, LogoMargin = 26;
 
     private void AddImage(byte[] png, double x, double y, double width, double height, int target)
@@ -454,12 +454,12 @@ public partial class EditView : UserControl
         marks.Add(mark); selected = mark;
     }
 
-    private (double Width, double Height) LogoSize(byte[] png) { var image = Decode(png); var h = LogoHeight; return (h * image.PixelWidth / image.PixelHeight, h); }
+    private static (double Width, double Height) LogoSize(byte[] png) { var image = Decode(png); var h = LogoHeight; return (h * image.PixelSize.Width / Math.Max(1, image.PixelSize.Height), h); }
 
-    private void AddIstek_Click(object sender, RoutedEventArgs e) { if (file is null) return; Remember(); PlaceLogos(page, istek: true, ib: false); SelectTool.IsChecked = true; Redraw(); }
-    private void AddIB_Click(object sender, RoutedEventArgs e) { if (file is null) return; Remember(); PlaceLogos(page, istek: false, ib: true); SelectTool.IsChecked = true; Redraw(); }
+    private void AddIstek_Click(object? sender, RoutedEventArgs e) { if (file is null) return; Remember(); PlaceLogos(page, istek: true, ib: false); SelectTool.IsChecked = true; Redraw(); }
+    private void AddIB_Click(object? sender, RoutedEventArgs e) { if (file is null) return; Remember(); PlaceLogos(page, istek: false, ib: true); SelectTool.IsChecked = true; Redraw(); }
 
-    private async void AddBoth_Click(object sender, RoutedEventArgs e)
+    private async void AddBoth_Click(object? sender, RoutedEventArgs e)
     {
         if (file is null) return;
         Remember();
@@ -467,9 +467,8 @@ public partial class EditView : UserControl
         {
             if (!sizes.ContainsKey(n))
             {
-                var path = file;
-                var size = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); var b = raster.RenderBitmap(n, 36); return new Size(b.PixelWidth * 2, b.PixelHeight * 2); });
-                sizes[n] = size;
+                var path = workPath; var index = n;
+                sizes[n] = await Task.Run(() => { using var raster = PdfRasterDocument.Open(path); using var b = raster.RenderBitmap(index, 36); return new Size(b.Width * 2, b.Height * 2); });
             }
             PlaceLogos(n, istek: true, ib: true);
         }
@@ -492,7 +491,7 @@ public partial class EditView : UserControl
         while (history.Count > 60) { var keep = history.Take(60).Reverse().ToList(); history.Clear(); foreach (var s in keep) history.Push(s); }
     }
 
-    private void Undo_Click(object sender, RoutedEventArgs e) => Undo();
+    private void Undo_Click(object? sender, RoutedEventArgs e) => Undo();
     private void Undo()
     {
         EndEdit(); EndRewrite(commit: false); EndParagraph(commit: false);
@@ -503,7 +502,7 @@ public partial class EditView : UserControl
         Redraw();
     }
 
-    private void Delete_Click(object sender, RoutedEventArgs e) => DeleteSelected();
+    private void Delete_Click(object? sender, RoutedEventArgs e) => DeleteSelected();
     private void DeleteSelected()
     {
         if (selected is null) return;
@@ -511,11 +510,11 @@ public partial class EditView : UserControl
         Remember(); marks.Remove(selected); selected = null; Redraw();
     }
 
-    private async void View_KeyDown(object sender, KeyEventArgs e)
+    private async void View_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (file is null || e.OriginalSource is TextBox) return;
-        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-        if (e.Key == Key.Delete) { DeleteSelected(); e.Handled = true; }
+        if (file is null || InTextBox(e.Source)) return;
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+        if (e.Key == Key.Delete || e.Key == Key.Back) { DeleteSelected(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Z) { Undo(); e.Handled = true; }
         else if (e.Key == Key.Escape && selected is not null) { selected = null; Redraw(); e.Handled = true; }
         else if (e.Key == Key.PageDown) { await ShowPage(page + 1); e.Handled = true; }
@@ -525,13 +524,13 @@ public partial class EditView : UserControl
 
     // ----- Kaydet -----
 
-    private async void Save_Click(object sender, RoutedEventArgs e) => await SaveAsync();
+    private async void Save_Click(object? sender, RoutedEventArgs e) => await SaveAsync();
 
     internal async Task<IReadOnlyList<string>?> SaveAsync()
     {
         if (file is null) return null;
         EndEdit(); EndRewrite(commit: true); EndParagraph(commit: true);
-        if (marks.Count == 0 && ReferenceEquals(document, original)) { shell.Info("Henüz bir değişiklik yapmadınız."); return null; }
+        if (marks.Count == 0 && ReferenceEquals(document, original)) { await shell.Info("Henüz bir değişiklik yapmadınız."); return null; }
         var input = file; var list = marks.Select(m => m.Clone()).ToList(); var source = workPath;
         var destination = OutputFolder.For(input);
         var result = await shell.RunAsync("Düzenlenen PDF kaydediliyor", (_, progress, token) =>
@@ -550,33 +549,34 @@ public partial class EditView : UserControl
         hoveredLine = null;
     }
 
-    private void BeginRewrite(TextLine line)
+    private async Task BeginRewrite(TextLine line)
     {
         var blocker = TextRewriter.Blocker(document, page, line);
-        if (blocker is not null) { shell.Info(blocker); return; }
-        rewriteBox = new TextBox
+        if (blocker is not null) { await shell.Info(blocker); return; }
+        var box = rewriteBox = new TextBox
         {
-            Tag = line, Text = line.Text, AcceptsReturn = false, FontFamily = new FontFamily("Arial"), FontSize = line.FontSize, FontWeight = line.Bold ? FontWeights.Bold : FontWeights.Normal,
-            MinWidth = Math.Max(line.Width + 20, 60), MaxWidth = Math.Max(Overlay.Width - line.X, 60), Height = double.NaN, Padding = new Thickness(1, 0, 1, 0), Margin = new Thickness(0),
-            BorderThickness = new Thickness(1.5 / zoom), BorderBrush = Ui.Brush("Primary"), Background = Brushes.White, ToolTip = "Enter: uygula · Esc: vazgeç",
+            Tag = line, Text = line.Text, AcceptsReturn = false, FontFamily = TextFont, FontSize = line.FontSize, FontWeight = line.Bold ? FontWeight.Bold : FontWeight.Normal,
+            MinWidth = Math.Max(line.Width + 20, 60), MaxWidth = Math.Max(overlayWidth - line.X, 60), Padding = new Thickness(1, 0, 1, 0), Margin = new Thickness(0),
+            BorderThickness = new Thickness(1.5 / zoom), BorderBrush = Ui.Brush("Primary"), Background = Brushes.White, CornerRadius = new CornerRadius(0),
         };
-        Canvas.SetLeft(rewriteBox, line.X - 1); Canvas.SetTop(rewriteBox, line.Y - 1);
-        rewriteBox.PreviewKeyDown += (_, e) =>
+        ToolTip.SetTip(box, "Enter: uygula · Esc: vazgeç");
+        Canvas.SetLeft(box, line.X - 1); Canvas.SetTop(box, line.Y - 1);
+        box.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (e.Key == Key.Enter) { EndRewrite(commit: true); e.Handled = true; }
             else if (e.Key == Key.Escape) { EndRewrite(commit: false); e.Handled = true; }
-        };
-        rewriteBox.LostKeyboardFocus += (_, _) => { if (rewriteBox is not null) EndRewrite(commit: true); };
+        }, RoutingStrategies.Tunnel);
+        box.LostFocus += (_, _) => { if (rewriteBox == box) EndRewrite(commit: true); };
         Redraw();
-        rewriteBox.Focus(); rewriteBox.SelectAll();
+        box.Focus(); box.SelectAll();
     }
 
     private void EndRewrite(bool commit)
     {
         if (rewriteBox is null) return;
         var box = rewriteBox; rewriteBox = null;
-        var line = (TextLine)box.Tag;
-        var text = box.Text;
+        var line = (TextLine)box.Tag!;
+        var text = box.Text ?? "";
         if (commit && text != line.Text) _ = ApplyRewrite(line, text);
         else Redraw();
         Focus();
@@ -588,7 +588,7 @@ public partial class EditView : UserControl
         var before = document; var n = page;
         RewriteResult result;
         try { result = await Task.Run(() => TextRewriter.Replace(before, n, line, text)); }
-        catch (UserFacingException error) { shell.Error(error.Message); Redraw(); return; }
+        catch (UserFacingException error) { await shell.Error(error.Message); Redraw(); return; }
         Remember();
         document = result.Document;
         await ReloadPages();
@@ -598,7 +598,8 @@ public partial class EditView : UserControl
     private async Task ReloadPages()
     {
         try { await File.WriteAllBytesAsync(workPath, document); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { shell.Error("Geçici dosya yazılamadı: " + error.Message); return; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { await shell.Error("Geçici dosya yazılamadı: " + error.Message); return; }
+        foreach (var entry in pages.Values) entry.Skia.Dispose();
         pages.Clear();
         await ShowPage(page);
     }
@@ -607,19 +608,18 @@ public partial class EditView : UserControl
 
     private string SampleBackground(Mark box)
     {
-        if (!pages.TryGetValue(page, out var bitmap)) return "#FFFFFF";
+        if (!pages.TryGetValue(page, out var entry)) return "#FFFFFF";
         try
         {
+            var bitmap = entry.Skia;
             var scale = RenderDpi / 72.0;
-            var source = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
             var samples = new List<(byte R, byte G, byte B)>();
-            var pixel = new byte[4];
             void Take(double x, double y)
             {
                 var px = (int)Math.Round(x * scale); var py = (int)Math.Round(y * scale);
-                if (px < 0 || py < 0 || px >= source.PixelWidth || py >= source.PixelHeight) return;
-                source.CopyPixels(new Int32Rect(px, py, 1, 1), pixel, 4, 0);
-                samples.Add((pixel[2], pixel[1], pixel[0]));
+                if (px < 0 || py < 0 || px >= bitmap.Width || py >= bitmap.Height) return;
+                var c = bitmap.GetPixel(px, py);
+                samples.Add((c.Red, c.Green, c.Blue));
             }
             // Kutunun hemen içinde, kenar boyunca 2 pt içeriden örnekler.
             const double inset = 2;
@@ -637,7 +637,7 @@ public partial class EditView : UserControl
             if (r > 245 && g > 245 && b > 245) return "#FFFFFF";
             return $"#{r:X2}{g:X2}{b:X2}";
         }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return "#FFFFFF"; }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or ObjectDisposedException) { return "#FFFFFF"; }
     }
 
     // ----- Paragraf düzenleme -----
@@ -653,28 +653,29 @@ public partial class EditView : UserControl
 
     private void BeginParagraph(Paragraph para)
     {
-        paragraphBox = new TextBox
+        var box = paragraphBox = new TextBox
         {
-            Tag = para, Text = para.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Arial"), FontSize = para.FontSize,
+            Tag = para, Text = para.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, FontFamily = TextFont, FontSize = para.FontSize,
             Width = Math.Max(para.Width + 12, 80), MinHeight = para.Height + 8, Padding = new Thickness(2), Margin = new Thickness(0),
-            BorderThickness = new Thickness(1.5 / zoom), BorderBrush = Ui.Brush("Success"), Background = Brushes.White, ToolTip = "Ctrl+Enter: uygula · Esc: vazgeç",
+            BorderThickness = new Thickness(1.5 / zoom), BorderBrush = Ui.Brush("Success"), Background = Brushes.White, CornerRadius = new CornerRadius(0),
         };
-        Canvas.SetLeft(paragraphBox, para.X - 3); Canvas.SetTop(paragraphBox, para.Y - 3);
-        paragraphBox.PreviewKeyDown += (_, e) =>
+        ToolTip.SetTip(box, "Ctrl+Enter: uygula · Esc: vazgeç");
+        Canvas.SetLeft(box, para.X - 3); Canvas.SetTop(box, para.Y - 3);
+        box.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) != 0) { EndParagraph(commit: true); e.Handled = true; }
+            if (e.Key == Key.Enter && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))) { EndParagraph(commit: true); e.Handled = true; }
             else if (e.Key == Key.Escape) { EndParagraph(commit: false); e.Handled = true; }
-        };
+        }, RoutingStrategies.Tunnel);
         Redraw();
-        paragraphBox.Focus(); paragraphBox.CaretIndex = paragraphBox.Text.Length;
+        box.Focus(); box.CaretIndex = box.Text?.Length ?? 0;
     }
 
     private void EndParagraph(bool commit)
     {
         if (paragraphBox is null) return;
         var box = paragraphBox; paragraphBox = null;
-        var para = (Paragraph)box.Tag;
-        var text = box.Text.Replace("\r\n", "\n").Trim();
+        var para = (Paragraph)box.Tag!;
+        var text = (box.Text ?? "").Replace("\r\n", "\n").Trim();
         if (commit && text != para.Text && text.Length > 0) _ = ApplyParagraph(para, text);
         else Redraw();
         Focus();
@@ -685,7 +686,7 @@ public partial class EditView : UserControl
         var before = document; var n = page;
         RewriteResult result;
         try { result = await Task.Run(() => TextRewriter.ReplaceParagraph(before, n, para, text)); }
-        catch (UserFacingException error) { shell.Error(error.Message); Redraw(); return; }
+        catch (UserFacingException error) { await shell.Error(error.Message); Redraw(); return; }
         Remember();
         document = result.Document;
         await ReloadPages();
@@ -695,75 +696,75 @@ public partial class EditView : UserControl
 
     // ----- Bul ve değiştir -----
 
-    private void FindReplace_Click(object sender, RoutedEventArgs e)
+    private void FindReplace_Click(object? sender, RoutedEventArgs e)
     {
         if (file is null) return;
-        FindPanel.Visibility = FindPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        if (FindPanel.Visibility == Visibility.Visible) FindBox.Focus();
+        FindPanel.IsVisible = !FindPanel.IsVisible;
+        if (FindPanel.IsVisible) FindBox.Focus();
     }
 
-    private async void ReplaceAll_Click(object sender, RoutedEventArgs e) => await ReplaceAllAsync(FindBox.Text, ReplaceBox.Text, CaseBox.IsChecked == true);
+    private async void ReplaceAll_Click(object? sender, RoutedEventArgs e) => await ReplaceAllAsync(FindBox.Text ?? "", ReplaceBox.Text ?? "", CaseBox.IsChecked == true);
 
     internal async Task<ReplaceAllResult?> ReplaceAllAsync(string find, string replace, bool caseSensitive)
     {
         if (file is null) return null;
-        if (string.IsNullOrEmpty(find)) { shell.Info("Aranacak yazıyı girin."); return null; }
+        if (string.IsNullOrEmpty(find)) { await shell.Info("Aranacak yazıyı girin."); return null; }
         EndRewrite(commit: false); EndParagraph(commit: false);
         var before = document;
+        ReplaceAllResult? result = null;
         var outcome = await shell.RunAsync("Belgede değiştiriliyor", (_, progress, token) => Task.Run<IReadOnlyList<string>>(() =>
         {
-            var r = TextRewriter.ReplaceAll(before, find, replace, caseSensitive, progress, token);
-            pendingReplace = r;
+            result = TextRewriter.ReplaceAll(before, find, replace, caseSensitive, progress, token);
             return [];
         }, token));
-        var result = pendingReplace; pendingReplace = null;
         if (outcome is null || result is null) return null;
-        if (result.ReplacedLines == 0) { shell.Info(result.FailedLines > 0 ? $"“{find}” bulundu ama {result.FailedLines} satır yerinde değiştirilemedi (taranmış veya çözülemeyen yazı tipi)." : $"“{find}” belgede bulunamadı."); return result; }
+        if (result.ReplacedLines == 0) { await shell.Info(result.FailedLines > 0 ? $"“{find}” bulundu ama {result.FailedLines} satır yerinde değiştirilemedi (taranmış veya çözülemeyen yazı tipi)." : $"“{find}” belgede bulunamadı."); return result; }
         Remember();
         document = result.Document;
         await ReloadPages();
         Summary.Text = $"{result.ReplacedLines} satır, {result.PagesWithMatches} sayfada değiştirildi." + (result.FailedLines > 0 ? $" {result.FailedLines} satır değiştirilemedi." : "");
         return result;
     }
-    private ReplaceAllResult? pendingReplace;
 
     // ----- İmza -----
 
     private static string SignaturePath => System.IO.Path.Combine(App.DataFolder, "imza.png");
 
-    private void AddSignature_Click(object sender, RoutedEventArgs e)
+    private async void AddSignature_Click(object? sender, RoutedEventArgs e)
     {
         if (file is null) return;
-        if (!File.Exists(SignaturePath) && !ChooseSignature()) return;
+        if (!File.Exists(SignaturePath) && !await ChooseSignature(shell)) return;
         try
         {
             var png = File.ReadAllBytes(SignaturePath);
             var image = Decode(png);
             var size = sizes[page];
-            var height = 50.0; var width = height * image.PixelWidth / Math.Max(1, image.PixelHeight);
+            var height = 50.0; var width = height * image.PixelSize.Width / Math.Max(1, image.PixelSize.Height);
             Remember();
             AddImage(png, size.Width - LogoMargin - width, size.Height - LogoMargin - height, width, height, page);
             SelectTool.IsChecked = true; Redraw();
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or System.Runtime.InteropServices.COMException)
-        { shell.Error("İmza resmi okunamadı: " + error.Message); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        { await shell.Error("İmza resmi okunamadı: " + error.Message); }
     }
 
     /// İmza resmini seçtirir ve PNG olarak kaydeder. Ayarlar menüsünden de çağrılır.
-    public static bool ChooseSignature()
+    public static async Task<bool> ChooseSignature(MainWindow owner)
     {
-        var picked = DropZone.Pick("Resimler|*.png;*.jpg;*.jpeg;*.bmp;*.gif", multiple: false);
+        var picked = await Pick.Files(owner, Pick.Images, multiple: false);
         if (picked.Length == 0) return false;
         try
         {
-            var bitmap = Images.Load(picked[0]);
+            using var bitmap = Images.Load(picked[0]);
             Directory.CreateDirectory(App.DataFolder);
             File.WriteAllBytes(SignaturePath, Images.Png(bitmap));
             return true;
         }
         catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException)
-        { MessageBox.Show("İmza kaydedilemedi: " + error.Message, "PanDaF", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
+        { await owner.Error("İmza kaydedilemedi: " + error.Message); return false; }
     }
+
+    // ----- Duman testi -----
 
     internal int ParagraphCount => paragraphs.Count;
     internal async Task SmokeParagraph(int index, string text)
@@ -776,10 +777,8 @@ public partial class EditView : UserControl
     internal bool DocumentChanged => !ReferenceEquals(document, original);
     internal async Task SmokeRewrite(int index, string text) { RewriteTool.IsChecked = true; await LoadLines(); await ApplyRewrite(lines[index], text); }
 
-    // Duman testi
     internal void SmokeAdd()
     {
-        var size = sizes[page];
         marks.Add(new Mark { Kind = MarkKind.Whiteout, Page = page, X = 60, Y = 120, Width = 200, Height = 40 });
         marks.Add(new Mark { Kind = MarkKind.Text, Page = page, X = 64, Y = 124, Width = 220, Height = 30, Text = "Düzeltilmiş başlık ĞÜŞİÖÇ", FontSize = 16, Bold = true, Color = "#1F5FBF" });
         marks.Add(new Mark { Kind = MarkKind.Highlight, Page = page, X = 60, Y = 200, Width = 240, Height = 22, Color = "#F2C811" });

@@ -164,11 +164,7 @@ public static class TextRewriter
         ["Bahnschrift"] = ["bahnschrift", "bahnschrift", "bahnschrift", "bahnschrift"], ["Cambria"] = ["cambria", "cambriab", "cambriai", "cambriaz"],
     };
 
-    private static readonly string[] FontFolders =
-    [
-        Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts"),
-    ];
+    private static string[] FontFolders => WindowsFontResolver.FontFolders;
 
     internal static string? FindFontFile(string family, bool bold, bool italic)
     {
@@ -177,12 +173,9 @@ public static class TextRewriter
         var known = Files.FirstOrDefault(k => k.Key.Replace(" ", "").Equals(family.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)).Value;
         if (known is not null)
         {
-            foreach (var candidate in new[] { known[index], known[0] })
-                foreach (var folder in FontFolders)
-                {
-                    var path = Path.Combine(folder, candidate + ".ttf");
-                    if (File.Exists(path)) return path;
-                }
+            var style = (bold, italic) switch { (true, true) => " Bold Italic", (true, false) => " Bold", (false, true) => " Italic", _ => "" };
+            var exact = WindowsFontResolver.Locate(known[index] + ".ttf", family + style + ".ttf", family.Replace(" ", "") + style.Replace(" ", "") + ".ttf", known[0] + ".ttf", family + ".ttf");
+            if (exact is not null) return exact;
         }
         // Bilinmeyen aile: dosya adı aileyle başlayan .ttf'ler arasında stile göre seç.
         var stem = family.Replace(" ", "").ToLowerInvariant();
@@ -279,7 +272,7 @@ public static class TextRewriter
         return lines;
     }
 
-    /// Yazı tipi dosyasından harf genişliği ölçer (WPF GlyphTypeface). Dosya yoksa ortalama genişlik kullanır.
+    /// Yazı tipi dosyasından harf genişliği ölçer (SkiaSharp). Dosya yoksa ortalama genişlik kullanır.
     private static class Measurer
     {
         private static readonly Dictionary<string, Func<string, double, double>> cache = new(StringComparer.OrdinalIgnoreCase);
@@ -293,15 +286,11 @@ public static class TextRewriter
                 try
                 {
                     if (fontFile is null) throw new FileNotFoundException();
-                    var typeface = new System.Windows.Media.GlyphTypeface(new Uri(fontFile));
-                    fn = (text, size) =>
-                    {
-                        var total = 0.0;
-                        foreach (var ch in text) total += typeface.CharacterToGlyphMap.TryGetValue(ch, out var glyph) ? typeface.AdvanceWidths[glyph] : .55;
-                        return total * size;
-                    };
+                    var typeface = SkiaSharp.SKTypeface.FromFile(fontFile) ?? throw new FileNotFoundException();
+                    var font = new SkiaSharp.SKFont(typeface, 100);
+                    fn = (text, size) => font.MeasureText(text) / 100.0 * size;
                 }
-                catch (Exception error) when (error is IOException or FileNotFoundException or ArgumentException or UriFormatException or NotSupportedException)
+                catch (Exception error) when (error is IOException or FileNotFoundException or ArgumentException or NotSupportedException)
                 { fn = (text, size) => text.Length * .52 * size; }
                 return cache[key] = fn;
             }

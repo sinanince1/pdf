@@ -1,0 +1,226 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Bg" Color="#F6F4F1"/>
+    <SolidColorBrush x:Key="Card" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Line" Color="#E3DED7"/>
+    <SolidColorBrush x:Key="Ink" Color="#1F2328"/>
+    <SolidColorBrush x:Key="Muted" Color="#5E6670"/>
+    <SolidColorBrush x:Key="Primary" Color="#D9480F"/>
+    <SolidColorBrush x:Key="PrimaryHover" Color="#BF3E0B"/>
+    <SolidColorBrush x:Key="PrimaryPressed" Color="#A33408"/>
+    <SolidColorBrush x:Key="PrimarySoft" Color="#FDEDE5"/>
+    <SolidColorBrush x:Key="Success" Color="#16805C"/>
+    <SolidColorBrush x:Key="SuccessSoft" Color="#E3F4EC"/>
+    <SolidColorBrush x:Key="Hover" Color="#F1EDE8"/>
+
+    <!-- Simgeler: 24×24, kendi çizimimiz -->
+    <StreamGeometry x:Key="IconMerge">M4 4h9v3h-9zM4 10.5h9v3h-9zM4 17h9v3h-9zM15 11l5 1-5 1zM14.5 9.5l5.5 2.5-5.5 2.5v-1.5h-2v-2h2z</StreamGeometry>
+    <StreamGeometry x:Key="IconSplit">M6 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zM6 15a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zM9 7.5l12 7.5-1.1 1.7L8 9.2zM9 16.5l12-7.5 1.1 1.7L8 14.8z</StreamGeometry>
+    <StreamGeometry x:Key="IconOrganize">M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8zM5 5v4h4V5zM15 5v4h4V5zM5 15v4h4v-4zM15 15v4h4v-4z</StreamGeometry>
+    <StreamGeometry x:Key="IconPdf">M6 2h8l5 5v15H6zM13 3.5V8h4.5zM8 12h2.2c1.4 0 2.3.8 2.3 2s-.9 2-2.3 2H9.5v2H8zm1.5 1.3v1.4h.7c.5 0 .8-.3.8-.7s-.3-.7-.8-.7zM13.5 12h2c1.8 0 2.8 1.2 2.8 3s-1 3-2.8 3h-2zm1.5 1.3v3.4h.5c.9 0 1.3-.6 1.3-1.7s-.4-1.7-1.3-1.7z</StreamGeometry>
+    <StreamGeometry x:Key="IconImage">M3 4h18v16H3zm2 2v9.5l4-4 4 4 3-3 5 5V6zM16 8a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z</StreamGeometry>
+    <StreamGeometry x:Key="IconEdit">M3 17.3V21h3.7L17.8 9.9l-3.7-3.7zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7z</StreamGeometry>
+    <StreamGeometry x:Key="IconPlus">M11 4h2v16h-2zM4 11h16v2H4z</StreamGeometry>
+    <StreamGeometry x:Key="IconClose">M5.6 4.2l14.2 14.2-1.4 1.4L4.2 5.6zM18.4 4.2L4.2 18.4l1.4 1.4L19.8 5.6z</StreamGeometry>
+    <StreamGeometry x:Key="IconUp">M12 7l7 7-1.4 1.4L12 9.8l-5.6 5.6L5 14z</StreamGeometry>
+    <StreamGeometry x:Key="IconDown">M12 17l-7-7 1.4-1.4L12 14.2l5.6-5.6L19 10z</StreamGeometry>
+    <StreamGeometry x:Key="IconLeft">M15 4l-8 8 8 8 1.4-1.4L9.8 12l6.6-6.6z</StreamGeometry>
+    <StreamGeometry x:Key="IconRight">M9 4l8 8-8 8-1.4-1.4 6.6-6.6-6.6-6.6z</StreamGeometry>
+    <StreamGeometry x:Key="IconBack">M11 5l-7 7 7 7 1.4-1.4L7.8 13H20v-2H7.8l4.6-4.6z</StreamGeometry>
+    <StreamGeometry x:Key="IconDelete">M8 3h8v2h5v2H3V5h5zM5 8h14l-1 13H6zM9 10v9h2v-9zm4 0v9h2v-9z</StreamGeometry>
+    <StreamGeometry x:Key="IconRotate">M12 5a7 7 0 0 1 6.9 5.7l1.9-.4-.3 4.7-4.3-2.1 1.5-.6A5 5 0 1 0 17 12h2a7 7 0 1 1-7-7z</StreamGeometry>
+    <StreamGeometry x:Key="IconUndo">M9 7V4L3 9l6 5v-3h5a4 4 0 0 1 0 8h-4v2h4a6 6 0 0 0 0-12z</StreamGeometry>
+    <StreamGeometry x:Key="IconRefresh">M12 4a8 8 0 0 1 7.5 5.2L21 8v6h-6l2-2a6 6 0 1 0 .7 5l1.8.9A8 8 0 1 1 12 4z</StreamGeometry>
+    <StreamGeometry x:Key="IconSelectAll">M3 3h4v2H5v2H3zM17 3h4v4h-2V5h-2zM3 17h2v2h2v2H3zM19 17h2v4h-4v-2h2zM8 8h8v8H8zm2 2v4h4v-4z</StreamGeometry>
+    <StreamGeometry x:Key="IconInfo">M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm-1 6h2v7h-2zm0-3h2v2h-2z</StreamGeometry>
+    <StreamGeometry x:Key="IconSettings">M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM10 2h4l.5 2.6 1.9 1.1 2.5-.9 2 3.4-2 1.7v2.2l2 1.7-2 3.4-2.5-.9-1.9 1.1L14 22h-4l-.5-2.6-1.9-1.1-2.5.9-2-3.4 2-1.7v-2.2l-2-1.7 2-3.4 2.5.9 1.9-1.1z</StreamGeometry>
+    <StreamGeometry x:Key="IconUpload">M12 3l5 5-1.4 1.4L13 6.8V16h-2V6.8L8.4 9.4 7 8zM4 18h16v2H4z</StreamGeometry>
+    <StreamGeometry x:Key="IconCheck">M9 16.2l-4.2-4.2L3.4 13.4 9 19 21 7l-1.4-1.4z</StreamGeometry>
+    <StreamGeometry x:Key="IconLock">M12 2a5 5 0 0 1 5 5v3h2v11H5V10h2V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3zm0 10a1.5 1.5 0 0 0-1 2.6V19h2v-2.4A1.5 1.5 0 0 0 12 14z</StreamGeometry>
+    <StreamGeometry x:Key="IconSearch">M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z</StreamGeometry>
+    <StreamGeometry x:Key="IconText">M5 4h14v3h-2V6h-4v12h2v2H9v-2h2V6H7v1H5z</StreamGeometry>
+    <StreamGeometry x:Key="IconEraser">M15.1 3.5l5.4 5.4-9.6 9.6H6.6l-3.3-3.3zM8.5 17.5h1.6l6.5-6.5-2.6-2.6-6.9 6.9zM4 20h17v2H4z</StreamGeometry>
+    <StreamGeometry x:Key="IconHighlight">M6 3h12v9l-2 2v3H8v-3l-2-2zm2 2v6.2l2 2V15h4v-1.8l2-2V5zM4 20h16v2H4z</StreamGeometry>
+    <StreamGeometry x:Key="IconPen">M3 21l1.5-5.5L16 4a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L8.5 19.5zM6.4 16.4l-.6 2.2 2.2-.6 9.6-9.6-1.6-1.6z</StreamGeometry>
+    <StreamGeometry x:Key="IconParagraph">M4 5h16v2H4zm0 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4z</StreamGeometry>
+    <StreamGeometry x:Key="IconSignature">M3 17c2-5 4-7 5-7s1 3 2 3 2-5 3-5 1 4 2 4 2-3 3-3 1 2 3 2v2c-2 0-3-2-3-2s-2 3-3 3-2-4-2-4-2 5-3 5-1-3-2-3-3 3-4 6zM3 20h18v1H3z</StreamGeometry>
+    <StreamGeometry x:Key="IconZoomIn">M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm-1 2h2v2h2v2h-2v2H9v-2H7V9h2z</StreamGeometry>
+    <StreamGeometry x:Key="IconZoomOut">M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM7 9h6v2H7z</StreamGeometry>
+    <StreamGeometry x:Key="IconTable">M3 4h18v16H3zm2 2v3h14V6zm0 5v3h6v-3zm8 0v3h6v-3zm-8 5v3h6v-3zm8 0v3h6v-3z</StreamGeometry>
+    <StreamGeometry x:Key="IconWord">M6 2h8l5 5v15H6zm7 1.5V8h4.5zM7.5 11h1.6l1 5 1.2-5h1.4l1.2 5 1-5h1.6l-1.8 8h-1.5l-1.2-5-1.2 5H9.3z</StreamGeometry>
+    <StreamGeometry x:Key="IconOpen">M4 4h7l2 2h7v14H4zm2 4v10h12V8z</StreamGeometry>
+    <StreamGeometry x:Key="IconCursor">M5 3l14 9-6 1 3.5 6-2 1L11 14l-4 4z</StreamGeometry>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- Genel -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="fonts:Inter#Inter, Segoe UI, Helvetica Neue, Arial"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Background" Value="{StaticResource Bg}"/>
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="26"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.subtitle">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,6,0,0"/>
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="TextBlock.small">
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="PathIcon">
+      <Setter Property="Width" Value="16"/>
+      <Setter Property="Height" Value="16"/>
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource Card}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Padding" Value="20"/>
+    </Style>
+
+    <!-- Butonlar -->
+    <Style Selector="Button">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource Primary}"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Padding" Value="26,12"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource PrimaryHover}"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource PrimaryPressed}"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="{StaticResource Card}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="18,9"/>
+      <Setter Property="CornerRadius" Value="10"/>
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Hover}"/>
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="12,7"/>
+      <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Hover}"/>
+    </Style>
+    <Style Selector="Button.icon">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Hover}"/>
+    </Style>
+    <Style Selector="Button.tile">
+      <Setter Property="Background" Value="{StaticResource Card}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="CornerRadius" Value="16"/>
+      <Setter Property="Padding" Value="22"/>
+      <Setter Property="Margin" Value="8"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="VerticalContentAlignment" Value="Top"/>
+    </Style>
+    <Style Selector="Button.tile:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource Primary}"/>
+      <Setter Property="Background" Value="{StaticResource Card}"/>
+    </Style>
+    <Style Selector="Button.tile:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource PrimarySoft}"/>
+    </Style>
+
+    <!-- Araç çubuğu seçenekleri -->
+    <Style Selector="RadioButton.tool">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="2,0"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="ToolBorder" Background="Transparent" CornerRadius="8" Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.tool:pointerover /template/ Border#ToolBorder">
+      <Setter Property="Background" Value="{StaticResource Hover}"/>
+    </Style>
+    <Style Selector="RadioButton.tool:checked /template/ Border#ToolBorder">
+      <Setter Property="Background" Value="{StaticResource PrimarySoft}"/>
+    </Style>
+
+    <!-- Seçenek kartı -->
+    <Style Selector="Border.option">
+      <Setter Property="Background" Value="{StaticResource Card}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1.5"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="14,10"/>
+      <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+    <Style Selector="Border.option.selected">
+      <Setter Property="BorderBrush" Value="{StaticResource Primary}"/>
+      <Setter Property="Background" Value="{StaticResource PrimarySoft}"/>
+    </Style>
+
+    <Style Selector="CheckBox">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="Height" Value="10"/>
+      <Setter Property="Foreground" Value="{StaticResource Primary}"/>
+      <Setter Property="Background" Value="{StaticResource Hover}"/>
+    </Style>
+  </Application.Styles>
+
+</Application>

@@ -1,4 +1,4 @@
-name: Windows derlemesi
+name: Derleme (Windows + macOS)
 
 on:
   push:
@@ -17,12 +17,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Hızlı kontrol: motor testleri (LibreOffice dahil) ve arayüz duman testi Linux'ta.
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Araçlar (LibreOffice, Xvfb, yazı tipleri)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress xvfb fonts-liberation fonts-dejavu-core
+      - name: Motor testleri
+        env:
+          PANDAF_LIBREOFFICE: '1'
+        run: |
+          set -o pipefail
+          dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | tee "$RUNNER_TEMP/motor-testleri.txt"
+      - name: Uygulamayı derle
+        run: dotnet build src/PanDaF/PanDaF.csproj -c Release -f net10.0
+      - name: Arayüz duman testi (Xvfb)
+        run: |
+          mkdir -p "$HOME/smoke"
+          xvfb-run -a -s "-screen 0 1400x900x24" dotnet src/PanDaF/bin/Release/net10.0/PanDaF.dll --smoke "$HOME/smoke"
+          cp -r "$HOME/smoke" "$RUNNER_TEMP/smoke"
+      - name: Rapor
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/smoke/rapor.txt" ] && { echo "::notice title=Arayuz testi (Linux)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$RUNNER_TEMP/smoke/rapor.txt")"; } || true
+          [ -f "$HOME/.local/share/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/.local/share/PanDaF/hata-gunlugu.txt" || true
+      - name: Çıktıları topla
+        if: always()
+        run: |
+          mkdir -p cikti
+          cp -R "$RUNNER_TEMP/smoke/ekran" cikti/ekran 2>/dev/null || true
+          cp "$RUNNER_TEMP/smoke/rapor.txt" "$RUNNER_TEMP/motor-testleri.txt" cikti/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-smoke-${{ github.sha }}
+          path: cikti/
+          if-no-files-found: warn
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -36,13 +79,13 @@ jobs:
           dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | Tee-Object -FilePath $out
           $code = $LASTEXITCODE
           $text = (Get-Content $out -Raw) -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
-          Write-Host "::notice title=Motor testleri::$text"
+          Write-Host "::notice title=Motor testleri (Windows)::$text"
           if ($code -ne 0) { exit $code }
 
       - name: Uygulamayı tek dosya olarak derle
         shell: pwsh
         run: |
-          dotnet publish src/PanDaF/PanDaF.csproj -c Release -o build/app
+          dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 --self-contained -p:PublishSingleFile=true -o build/app
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem build/app | Format-Table Name, Length
 
@@ -55,33 +98,11 @@ jobs:
           if (Test-Path "$smoke/rapor.txt") {
             Get-Content "$smoke/rapor.txt"
             $text = (Get-Content "$smoke/rapor.txt" -Raw) -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
-            Write-Host "::notice title=Arayuz testi::$text"
+            Write-Host "::notice title=Arayuz testi (Windows)::$text"
           } else { Write-Host '::error title=Arayuz testi::Rapor oluşmadı' }
           $log = Join-Path $env:LOCALAPPDATA 'PanDaF/hata-gunlugu.txt'
           if (Test-Path $log) { Write-Host '--- hata günlüğü ---'; Get-Content $log }
           if ($process.ExitCode -ne 0) { Write-Host "Çıkış kodu: $($process.ExitCode)"; exit 1 }
-
-      - name: Ekran görüntülerini "ekran-goruntuleri" dalına gönder
-        if: always() && github.ref == 'refs/heads/main'
-        shell: pwsh
-        run: |
-          $smoke = Join-Path $env:RUNNER_TEMP 'smoke'
-          $pub = Join-Path $env:RUNNER_TEMP 'ekran-dal'
-          New-Item -ItemType Directory -Force $pub | Out-Null
-          if (Test-Path "$smoke/ekran") { Copy-Item "$smoke/ekran/*.png" $pub }
-          Get-ChildItem $smoke -Filter *.txt -ErrorAction SilentlyContinue | Copy-Item -Destination $pub
-          $engine = Join-Path $env:RUNNER_TEMP 'motor-testleri.txt'
-          if (Test-Path $engine) { Copy-Item $engine $pub }
-          Set-Content "$pub/README.md" "Otomatik derlemenin ekran görüntüleri ve test raporları. Kaynak: $env:GITHUB_SHA"
-          Set-Location $pub
-          git init -q -b ekran-goruntuleri
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -qm "Ekran görüntüleri: $env:GITHUB_SHA"
-          git push -q --force "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git" ekran-goruntuleri
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Paketle
         shell: pwsh
@@ -97,41 +118,159 @@ jobs:
           Compress-Archive -Path "$zip/*" -DestinationPath dist/PanDaF.zip -Force
           Get-ChildItem dist | Format-Table Name, Length
 
-      - name: Derleme çıktısını sakla
+      - name: Çıktıları topla
         if: always()
-        uses: actions/upload-artifact@v4
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force cikti | Out-Null
+          if (Test-Path dist) { Copy-Item dist cikti/dist -Recurse }
+          $smoke = Join-Path $env:RUNNER_TEMP 'smoke'
+          if (Test-Path "$smoke/ekran") { Copy-Item "$smoke/ekran" cikti/ekran -Recurse }
+          if (Test-Path "$smoke/rapor.txt") { Copy-Item "$smoke/rapor.txt" cikti/ }
+          $engine = Join-Path $env:RUNNER_TEMP 'motor-testleri.txt'
+          if (Test-Path $engine) { Copy-Item $engine cikti/ }
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: PanDaF-${{ github.sha }}
-          path: |
-            dist/
-            ${{ runner.temp }}/smoke/ekran/
-            ${{ runner.temp }}/smoke/rapor.txt
+          name: windows-${{ github.sha }}
+          path: cikti/
           if-no-files-found: warn
 
-      # Otomatik sürüm: main'e gönderilen kodda src/PanDaF/PanDaF.csproj içindeki <Version> yeni bir
-      # numaraysa (ör. 1.2.0 → v1.2.0 henüz yoksa) sürüm otomatik yayınlanır ve dosyalar eklenir.
-      - name: Yeni sürüm numarasıysa otomatik yayınla
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: pwsh
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Motor testleri
+        run: |
+          set -o pipefail
+          dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | tee "$RUNNER_TEMP/motor-testleri.txt"
+          echo "::notice title=Motor testleri (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$RUNNER_TEMP/motor-testleri.txt")"
+
+      - name: Derle ve .app paketi oluştur (Apple Silicon ve Intel)
+        run: |
+          set -e
+          VERSION=$(grep -o '<Version>[^<]*' src/PanDaF/PanDaF.csproj | head -1 | sed 's/<Version>//')
+          # Simge: PNG → icns
+          mkdir -p build/PanDaF.iconset
+          for s in 16 32 64 128 256 512; do
+            sips -z $s $s src/PanDaF/Assets/PanDaF.png --out build/PanDaF.iconset/icon_${s}x${s}.png >/dev/null
+            d=$((s*2)); sips -z $d $d src/PanDaF/Assets/PanDaF.png --out build/PanDaF.iconset/icon_${s}x${s}@2x.png >/dev/null
+          done
+          iconutil -c icns build/PanDaF.iconset -o build/PanDaF.icns
+          mkdir -p dist
+          for RID in osx-arm64 osx-x64; do
+            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
+            APP=build/app-$RID/PanDaF.app
+            mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+            cp -R build/$RID/. "$APP/Contents/MacOS/"
+            cp build/PanDaF.icns "$APP/Contents/Resources/PanDaF.icns"
+            sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+            echo -n 'APPL????' > "$APP/Contents/PkgInfo"
+            chmod +x "$APP/Contents/MacOS/PanDaF"
+            # Geliştirici sertifikası yok: "ad-hoc" imza. İlk açılışta sağ tık → Aç gerekir.
+            codesign --force --deep --sign - "$APP"
+            cp LICENSE "build/app-$RID/LICENSE.txt"; cp THIRD-PARTY-NOTICES.txt "build/app-$RID/"; cp -R licenses "build/app-$RID/licenses"
+            NAME=$([ "$RID" = osx-arm64 ] && echo "PanDaF-macOS-AppleSilicon.zip" || echo "PanDaF-macOS-Intel.zip")
+            ditto -c -k --keepParent --sequesterRsrc "build/app-$RID" "dist/$NAME"
+          done
+          ls -la dist
+
+      - name: Arayüz duman testi (macOS penceresi)
+        run: |
+          set +e
+          SMOKE="$HOME/smoke"
+          build/app-osx-arm64/PanDaF.app/Contents/MacOS/PanDaF --smoke "$SMOKE"
+          CODE=$?
+          mkdir -p "$RUNNER_TEMP/smoke"; cp -R "$SMOKE"/. "$RUNNER_TEMP/smoke/" 2>/dev/null
+          [ -f "$SMOKE/rapor.txt" ] && cat "$SMOKE/rapor.txt" && echo "::notice title=Arayuz testi (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$SMOKE/rapor.txt")"
+          [ -f "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt"
+          [ -f "$HOME/.local/share/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/.local/share/PanDaF/hata-gunlugu.txt"
+          exit $CODE
+
+      - name: Çıktıları topla
+        if: always()
+        run: |
+          mkdir -p cikti
+          [ -d dist ] && cp -R dist cikti/dist || true
+          cp -R "$RUNNER_TEMP/smoke/ekran" cikti/ekran 2>/dev/null || true
+          cp "$RUNNER_TEMP/smoke/rapor.txt" "$RUNNER_TEMP/motor-testleri.txt" cikti/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-${{ github.sha }}
+          path: cikti/
+          if-no-files-found: warn
+
+  yayin:
+    needs: [linux, windows, macos]
+    if: always() && needs.windows.result == 'success' && needs.macos.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-${{ github.sha }}
+          path: indir/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-${{ github.sha }}
+          path: indir/macos
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-smoke-${{ github.sha }}
+          path: indir/linux
+        continue-on-error: true
+
+      - name: Ekran görüntülerini "ekran-goruntuleri" dalına gönder
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = ([xml](Get-Content src/PanDaF/PanDaF.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-          $tag = "v$version"
-          gh release view $tag 2>$null | Out-Null
-          if ($LASTEXITCODE -eq 0) { Write-Host "$tag zaten yayınlanmış; yeni sürüm yok."; exit 0 }
-          gh release create $tag dist/PanDaF.exe dist/PanDaF.zip --target $env:GITHUB_SHA --title "PanDaF $tag" --notes-file docs/surum-notlari.md
-          Write-Host "::notice title=Sürüm yayınlandı::$tag"
+          set -e
+          PUB="$RUNNER_TEMP/ekran-dal"; mkdir -p "$PUB/windows" "$PUB/macos" "$PUB/linux"
+          cp indir/windows/ekran/*.png "$PUB/windows/" 2>/dev/null || true
+          cp indir/windows/rapor.txt "$PUB/windows/" 2>/dev/null || true
+          cp indir/windows/motor-testleri.txt "$PUB/windows/" 2>/dev/null || true
+          cp indir/macos/ekran/*.png "$PUB/macos/" 2>/dev/null || true
+          cp indir/macos/rapor.txt "$PUB/macos/" 2>/dev/null || true
+          cp indir/macos/motor-testleri.txt "$PUB/macos/" 2>/dev/null || true
+          cp indir/linux/ekran/*.png "$PUB/linux/" 2>/dev/null || true
+          cp indir/linux/rapor.txt indir/linux/motor-testleri.txt "$PUB/linux/" 2>/dev/null || true
+          echo "Otomatik derlemenin ekran görüntüleri ve test raporları (windows/, macos/, linux/). Kaynak: $GITHUB_SHA" > "$PUB/README.md"
+          cd "$PUB"
+          git init -q -b ekran-goruntuleri
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -qm "Ekran görüntüleri: $GITHUB_SHA"
+          git push -q --force "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" ekran-goruntuleri
 
-      # Elle sürüm: GitHub'da "Releases > Draft a new release" ile v1.0.1 gibi bir sürüm yayınlayın
+      # Otomatik sürüm: main'e gönderilen kodda src/PanDaF/PanDaF.csproj içindeki <Version> yeni bir
+      # numaraysa (ör. 2.0.0 → v2.0.0 henüz yoksa) sürüm otomatik yayınlanır ve dosyalar eklenir.
+      - name: Yeni sürüm numarasıysa otomatik yayınla
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -o '<Version>[^<]*' src/PanDaF/PanDaF.csproj | head -1 | sed 's/<Version>//')
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "$TAG zaten yayınlanmış; yeni sürüm yok."; exit 0; fi
+          gh release create "$TAG" indir/windows/dist/PanDaF.exe indir/windows/dist/PanDaF.zip indir/macos/dist/PanDaF-macOS-AppleSilicon.zip indir/macos/dist/PanDaF-macOS-Intel.zip --target "$GITHUB_SHA" --title "PanDaF $TAG" --notes-file docs/surum-notlari.md
+          echo "::notice title=Sürüm yayınlandı::$TAG"
+
+      # Elle sürüm: GitHub'da "Releases > Draft a new release" ile v2.0.1 gibi bir sürüm yayınlayın
       # (veya v* etiketi gönderin). Dosyalar derlenip sürüme otomatik eklenir.
       - name: Sürüme dosyaları ekle
         if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { $env:GITHUB_REF_NAME }
-          gh release view $tag 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) { gh release create $tag --title "PanDaF $tag" --notes-file docs/surum-notlari.md }
-          gh release upload $tag dist/PanDaF.exe dist/PanDaF.zip --clobber
+          if [ "${{ github.event_name }}" = release ]; then TAG='${{ github.event.release.tag_name }}'; else TAG="$GITHUB_REF_NAME"; fi
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "PanDaF $TAG" --notes-file docs/surum-notlari.md
+          gh release upload "$TAG" indir/windows/dist/PanDaF.exe indir/windows/dist/PanDaF.zip indir/macos/dist/PanDaF-macOS-AppleSilicon.zip indir/macos/dist/PanDaF-macOS-Intel.zip --clobber

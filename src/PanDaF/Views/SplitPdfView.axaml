@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.SplitPdfView">
+  <Grid Margin="40,28,40,24" MaxWidth="920" RowDefinitions="Auto,*,Auto">
+    <StackPanel>
+      <TextBlock Classes="title" Text="PDF böl"/>
+      <TextBlock Classes="subtitle" Text="Bir PDF seçin, nasıl bölmek istediğinizi işaretleyin."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl Name="DropHost" Focusable="False"/>
+      <ScrollViewer Name="OptionsPanel" IsVisible="False" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <Border Classes="card" Padding="16,12" Margin="0,0,0,20">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Classes="secondary" Content="Başka PDF seç" Click="Change_Click"/>
+              <PathIcon DockPanel.Dock="Left" Data="{StaticResource IconPdf}" Width="22" Height="22" Foreground="{StaticResource Primary}" Margin="0,0,14,0"/>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Name="FileName" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Name="FileDetails" Classes="small"/>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+
+          <TextBlock Classes="section" Text="Nasıl bölünsün?"/>
+          <Border Name="EachPageCard" Classes="option">
+            <RadioButton Name="EachPage" GroupName="Mode" IsChecked="True" IsCheckedChanged="Mode_Changed">
+              <StackPanel>
+                <TextBlock Text="Her sayfayı ayrı PDF yap" FontWeight="SemiBold"/>
+                <TextBlock Text="Örnek: 10 sayfalık PDF'den 10 ayrı dosya oluşur." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="EveryNCard" Classes="option">
+            <RadioButton Name="EveryN" GroupName="Mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Her" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  <TextBox Name="PagesPerFile" Width="64" Margin="10,0" Text="2" HorizontalContentAlignment="Center" GotFocus="PagesPerFile_Focus"/>
+                  <TextBlock Text="sayfada bir böl" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Örnek: Her öğrencinin 2 sayfalık çalışmasını ayrı dosya yapmak için." Classes="small" Margin="0,6,0,0"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="ExtractCard" Classes="option">
+            <RadioButton Name="Extract" GroupName="Mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel>
+                <TextBlock Text="Yalnızca şu sayfaları al" FontWeight="SemiBold"/>
+                <TextBox Name="Ranges" Width="260" HorizontalAlignment="Left" Margin="0,8,0,0" GotFocus="Ranges_Focus"/>
+                <TextBlock Text="Yazım örneği: 1-3, 5, 8  →  1, 2, 3, 5 ve 8. sayfalar tek PDF olur." Classes="small" Margin="0,6,0,0"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="Go" DockPanel.Dock="Right" Classes="primary" Content="Böl" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock Name="Summary" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Text="Bölmek için bir PDF seçin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -114,13 +114,49 @@ public static class PdfAnnotator
     }
 }
 
-/// PDFsharp'ın Core sürümü yazı tiplerini kendisi bulamaz; Windows'un Fonts klasöründen Arial
-/// (yoksa Segoe UI) okunur. Türkçe karakterler her ikisinde de vardır.
+/// PDFsharp'ın Core sürümü yazı tiplerini kendisi bulamaz; işletim sisteminin yazı tipi klasörlerinden
+/// Arial (yoksa Helvetica/Liberation Sans/DejaVu Sans) okunur. Türkçe karakterler hepsinde vardır.
 public sealed class WindowsFontResolver : IFontResolver
 {
     private static readonly object gate = new();
     private static bool installed;
-    private static readonly string Fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+    /// Platformun yazı tipi klasörleri (sistem + kullanıcı).
+    public static readonly string[] FontFolders = Folders();
+    private static string[] Folders()
+    {
+        var list = new List<string>();
+        if (OperatingSystem.IsWindows())
+        {
+            list.Add(Environment.GetFolderPath(Environment.SpecialFolder.Fonts));
+            list.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts"));
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            list.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Fonts"));
+            list.Add("/Library/Fonts"); list.Add("/Library/Fonts/Microsoft"); list.Add("/System/Library/Fonts/Supplemental"); list.Add("/System/Library/Fonts");
+            list.Add("/Applications/Microsoft Word.app/Contents/Resources/DFonts"); list.Add("/Applications/LibreOffice.app/Contents/Resources/fonts/truetype");
+        }
+        else
+        {
+            list.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fonts"));
+            list.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "fonts"));
+            foreach (var root in new[] { "/usr/share/fonts", "/usr/local/share/fonts" })
+                if (Directory.Exists(root)) { list.Add(root); try { list.AddRange(Directory.GetDirectories(root, "*", SearchOption.AllDirectories)); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } }
+        }
+        return list.Where(Directory.Exists).Distinct().ToArray();
+    }
+
+    /// Bir yazı tipi dosyasını klasörlerde arar (adlar sırayla denenir).
+    public static string? Locate(params string[] fileNames)
+    {
+        foreach (var name in fileNames)
+            foreach (var folder in FontFolders)
+            {
+                var path = Path.Combine(folder, name);
+                if (File.Exists(path)) return path;
+            }
+        return null;
+    }
 
     public static void Install()
     {
@@ -147,16 +183,13 @@ public sealed class WindowsFontResolver : IFontResolver
         var face = faceName.Replace("pandaf-", "");
         string[] candidates = face switch
         {
-            "bi" => ["arialbi.ttf", "segoeuiz.ttf", "arialbd.ttf", "arial.ttf", "segoeui.ttf"],
-            "b" => ["arialbd.ttf", "segoeuib.ttf", "arial.ttf", "segoeui.ttf"],
-            "i" => ["ariali.ttf", "segoeuii.ttf", "arial.ttf", "segoeui.ttf"],
-            _ => ["arial.ttf", "segoeui.ttf", "calibri.ttf", "tahoma.ttf"],
+            "bi" => ["arialbi.ttf", "Arial Bold Italic.ttf", "LiberationSans-BoldItalic.ttf", "DejaVuSans-BoldOblique.ttf", "segoeuiz.ttf", "arialbd.ttf", "Arial Bold.ttf", "arial.ttf", "Arial.ttf"],
+            "b" => ["arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "segoeuib.ttf", "arial.ttf", "Arial.ttf"],
+            "i" => ["ariali.ttf", "Arial Italic.ttf", "LiberationSans-Italic.ttf", "DejaVuSans-Oblique.ttf", "segoeuii.ttf", "arial.ttf", "Arial.ttf"],
+            _ => ["arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf", "segoeui.ttf", "Helvetica.ttf", "calibri.ttf", "tahoma.ttf"],
         };
-        foreach (var file in candidates)
-        {
-            var path = Path.Combine(Fonts, file);
-            if (File.Exists(path)) return File.ReadAllBytes(path);
-        }
-        throw new UserFacingException("Yazı tipi bulunamadı: Windows'ta Arial veya Segoe UI yüklü olmalı.");
+        var found = Locate(candidates);
+        if (found is not null) return File.ReadAllBytes(found);
+        throw new UserFacingException("Yazı tipi bulunamadı: bilgisayarda Arial (veya Liberation Sans / DejaVu Sans) yüklü olmalı.");
     }
 }

@@ -13,9 +13,16 @@ public static class MicrosoftOffice
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(4);
     private const int MsoAutomationSecurityForceDisable = 3;
 
-    public static bool HasWord => Type.GetTypeFromProgID("Word.Application") is not null;
-    public static bool HasPowerPoint => Type.GetTypeFromProgID("PowerPoint.Application") is not null;
-    public static bool HasExcel => Type.GetTypeFromProgID("Excel.Application") is not null;
+    public static bool HasWord => Has("Word.Application");
+    public static bool HasPowerPoint => Has("PowerPoint.Application");
+    public static bool HasExcel => Has("Excel.Application");
+
+    private static bool Has(string progId)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        try { return Type.GetTypeFromProgID(progId) is not null; }
+        catch (PlatformNotSupportedException) { return false; }
+    }
 
     /// Bu dosya Microsoft Office ile PDF'ye çevrilebilir mi?
     public static bool CanConvert(string path)

@@ -1,8 +1,12 @@
 <p align="center"><img src="src/PanDaF/Assets/PanDaF.png" width="112" alt="PanDaF"></p>
 <h1 align="center">PanDaF</h1>
-<p align="center">Öğretmenler için basit, Türkçe PDF araçları · Windows 10 / 11</p>
+<p align="center">Öğretmenler için basit, Türkçe PDF araçları · Windows 10 / 11 · macOS 12+</p>
 
-<p align="center"><a href="https://github.com/sinanince1/pdf/releases/latest/download/PanDaF.exe"><b>⬇ PanDaF'ı indir (Windows)</b></a></p>
+<p align="center">
+<a href="https://github.com/sinanince1/pdf/releases/latest/download/PanDaF.exe"><b>⬇ Windows için indir (PanDaF.exe)</b></a> ·
+<a href="https://github.com/sinanince1/pdf/releases/latest/download/PanDaF-macOS-AppleSilicon.zip"><b>⬇ Mac için indir (Apple Silicon: M1/M2/M3/M4)</b></a> ·
+<a href="https://github.com/sinanince1/pdf/releases/latest/download/PanDaF-macOS-Intel.zip"><b>⬇ Mac için indir (Intel)</b></a>
+</p>
 
 ## Neler yapabilir?
 
@@ -15,7 +19,7 @@
 | **PDF'ye çevir** | Word, PowerPoint, Excel dosyalarını ve fotoğrafları PDF yapar. Fotoğraflar A4'e yerleştirilebilir, tek PDF'de birleştirilebilir. |
 | **PDF'den çevir** | PDF'yi Word belgesine, Excel tablosuna, her sayfası ayrı bir resme (JPG/PNG) veya düz metne dönüştürür. |
 
-### Shift paneli (en hızlı yol)
+### Shift paneli (en hızlı yol, Windows)
 
 PanDaF çalışırken masaüstünde veya bir klasörde bir ya da birkaç dosyayı seçip **sürüklemeye başlayın ve Shift'e basın**. İmlecin altında PanDaF paneli açılır; dosyaları bir dilimin üzerine bırakın:
 
@@ -32,15 +36,19 @@ Vazgeçmek için dosyaları panelin ortasına ya da boş bir yere bırakın.
 
 > Dosya bir klasörde değilse (tarayıcının indirilenler listesi, e-posta eki, ZIP içi, yalnızca çevrim içi OneDrive dosyası) Windows dosyanın yerini vermez; panel bunu söyler. Önce dosyayı masaüstüne kaydedip oradan sürükleyin.
 
+> Shift paneli şimdilik yalnızca Windows'ta çalışır. Mac'te dosyaları PanDaF penceresine, Dock'taki panda simgesine sürükleyin ya da Finder'da sağ tık → **Birlikte Aç → PanDaF** deyin.
+
 ### Arka planda çalışma ve otomatik başlatma
 
-- PanDaF, **bilgisayar açılınca** kendiliğinden ve pencere açmadan başlar; saatin yanında panda simgesi görünür. Böylece Shift paneli her zaman hazırdır. Yönetici izni gerekmez.
-- Pencereyi kapatmak PanDaF'ı kapatmaz; simgeye dönüşür. Tamamen kapatmak için simgeye sağ tıklayıp **PanDaF'tan çık**'ı seçin.
+- PanDaF, **bilgisayar açılınca** kendiliğinden ve pencere açmadan başlar; Windows'ta saatin yanında, Mac'te menü çubuğunda panda simgesi görünür. Böylece Shift paneli (Windows) her zaman hazırdır. Yönetici izni gerekmez.
+- Pencereyi kapatmak PanDaF'ı kapatmaz; simgeye dönüşür. Tamamen kapatmak için simgeye (sağ) tıklayıp **PanDaF'tan çık**'ı seçin (Mac'te ⌘Q da olur).
 - Bunlar **Ayarlar** düğmesinden (veya simgeye sağ tıklayarak) açılıp kapatılabilir: *Shift paneli*, *Bilgisayar açılınca başlat*.
 
 Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakırsanız sayfa düzenleyici, birden fazla PDF bırakırsanız birleştirme, Word veya fotoğraf bırakırsanız PDF'ye çevirme açılır.
 
 ## Kurulum
+
+### Windows
 
 1. Yukarıdaki bağlantıdan **PanDaF.exe** dosyasını indirin.
 2. Dosyaya çift tıklayın. Kurulum gerekmez; dosyayı Masaüstüne veya istediğiniz klasöre koyabilirsiniz.
@@ -48,11 +56,20 @@ Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakır
 
 > Okul bilgisayarında uygulama hiç açılmıyorsa, bilgisayarın yöneticisi bilinmeyen programları engellemiş olabilir. Bilişim sorumlusundan izin isteyin.
 
+### Mac
+
+1. Mac'inize uygun ZIP'i indirin: **Apple Silicon** (M1/M2/M3/M4; Apple menüsü → *Bu Mac Hakkında* → "Çip: Apple …") veya **Intel**.
+2. ZIP'i açın; içindeki **PanDaF.app**'ı **Uygulamalar** klasörüne sürükleyin.
+3. İlk açılışta macOS "PanDaF'ın geliştiricisi doğrulanamadı" diyebilir (uygulama Apple'a kayıtlı bir imza taşımaz). Uygulamaya **sağ tıklayıp (ya da Control basılı tutup) Aç**'ı seçin, çıkan pencerede yine **Aç**'a tıklayın. Bunu bir kez yapmanız yeterlidir.
+   - Sağ tık → Aç seçeneği görünmüyorsa: **Sistem Ayarları → Gizlilik ve Güvenlik** bölümünün altındaki **Yine de Aç** düğmesini kullanın.
+   - Hâlâ açılmıyorsa Terminal'e şunu yapıştırın: `xattr -dr com.apple.quarantine /Applications/PanDaF.app`
+4. Word/PowerPoint/Excel dönüşümleri için Mac'te ücretsiz [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/)'in kurulu olması gerekir (Uygulamalar klasörüne sürüklemek yeterli). Diğer tüm araçlar ek program istemez.
+
 ## Word, PowerPoint ve Excel dönüşümleri
 
 - Bilgisayarda **Microsoft Office** kuruluysa dönüşümler Office'in kendisiyle yapılır; biçim en iyi şekilde korunur.
-- Office yoksa ücretsiz **LibreOffice** bileşeni ilk kullanımda **bir kez** indirilir (yaklaşık 350 MB). Uygulama önce izninizi sorar. Bileşen bilgisayara kurulmaz, yalnızca `%LOCALAPPDATA%\PanDaF` klasörüne açılır.
-- **PDF → Word** üç yolu sırayla dener: Microsoft Word'ün kendi dönüştürücüsü; LibreOffice'e PDF'yi doğrudan verme (sayfa düzeni korunur, Stirling-PDF'in de kullandığı yol); metni çıkarıp akıcı belge kurma. Taranmış (fotoğraf gibi) PDF'lerde Windows'un yazı tanıması kullanılır; belgeye sayfa görüntüsünün altında tanınan metin eklenir. Sonuç, PDF'nin nasıl hazırlandığına bağlıdır; hiçbir araç her PDF'yi kusursuz Word yapamaz.
+- Office yoksa (Windows) ücretsiz **LibreOffice** bileşeni ilk kullanımda **bir kez** indirilir (yaklaşık 350 MB). Uygulama önce izninizi sorar. Bileşen bilgisayara kurulmaz, yalnızca `%LOCALAPPDATA%\PanDaF` klasörüne açılır. Mac'te LibreOffice'i kendiniz kurarsınız; PanDaF Uygulamalar klasöründe bulur.
+- **PDF → Word** üç yolu sırayla dener: Microsoft Word'ün kendi dönüştürücüsü; LibreOffice'e PDF'yi doğrudan verme (sayfa düzeni korunur, Stirling-PDF'in de kullandığı yol); metni çıkarıp akıcı belge kurma. Taranmış (fotoğraf gibi) PDF'lerde Windows'un yazı tanıması kullanılır; belgeye sayfa görüntüsünün altında tanınan metin eklenir (Mac'te yazı tanıma yoktur; taranmış sayfalar resim olarak aktarılır). Sonuç, PDF'nin nasıl hazırlandığına bağlıdır; hiçbir araç her PDF'yi kusursuz Word yapamaz.
 - **PDF → Excel** ek program gerektirmez: sayfadaki sözcüklerin konumlarından satır ve sütunlar çıkarılır, sayılar sayı olarak yazılır. Çizgili tablolarda ve not listelerinde iyi çalışır; serbest metinde satırlar tek sütuna düşer.
 
 ## Gizlilik ve güvenlik
@@ -64,17 +81,19 @@ Dosyaları doğrudan pencereye sürükleyip bırakabilirsiniz: tek PDF bırakır
 
 ## Sorun mu var?
 
-Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt`, Shift panelinin adımları `%LOCALAPPDATA%\PanDaF\panel-gunlugu.txt` dosyasına yazılır. Sorun bildirirken bu dosyayı eklemeniz çözümü kolaylaştırır.
+Hata ayrıntıları `%LOCALAPPDATA%\PanDaF\hata-gunlugu.txt` (Mac'te `~/.local/share/PanDaF/hata-gunlugu.txt`), Shift panelinin adımları `%LOCALAPPDATA%\PanDaF\panel-gunlugu.txt` dosyasına yazılır. Sorun bildirirken bu dosyayı eklemeniz çözümü kolaylaştırır.
 
 ---
 
 ## Geliştirenler için
 
-- **Yapı:** `src/PanDaF.Core` (PDF motoru), `src/PanDaF` (WPF arayüzü), `tests/PanDaF.Tests` (motor testleri). .NET 10, WPF, x64.
-- **Derleme:** `dotnet publish src/PanDaF/PanDaF.csproj -c Release -o build/app` → tek dosya `PanDaF.exe` (.NET kurulumu gerekmez).
-- **Testler:** `dotnet run --project tests/PanDaF.Tests -c Release`. `PANDAF_LIBREOFFICE=1` ile LibreOffice gerçekten indirilir ve Office dönüşümleri de denenir.
-- **Arayüz testi:** `PanDaF.exe --smoke <klasör>` tüm araçları gerçek pencerede, gerçek dosyalarla çalıştırır ve ekran görüntüleri alır.
-- **Otomatik derleme:** Her `main` gönderiminde GitHub Actions Windows'ta testleri ve arayüz testini çalıştırır. Yeni sürüm için `src/PanDaF/PanDaF.csproj` içindeki `<Version>` numarasını artırıp `main`'e gönderin; testler geçerse sürüm (`v1.2.1` gibi) `.exe` ve `.zip` ile otomatik yayınlanır. İsterseniz GitHub'da **Releases → Draft a new release** ile elle de yayınlayabilirsiniz.
+- **Yapı:** `src/PanDaF.Core` (PDF motoru; PDFsharp, PdfPig, PDFium, KillerPdf.Engine, SkiaSharp), `src/PanDaF` (Avalonia arayüzü; tek kod tabanı Windows, macOS ve Linux'ta çalışır), `tests/PanDaF.Tests` (motor testleri). .NET 10.
+  - `net10.0-windows` hedefi Windows'a özgü parçaları ekler (`Platform/Windows`: Shift paneli, Windows yazı tanıma, Office köprüsü); `net10.0` hedefi macOS/Linux içindir.
+- **Derleme (Windows):** `dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0-windows10.0.19041.0 -r win-x64 --self-contained -p:PublishSingleFile=true -o build/app` → tek dosya `PanDaF.exe`.
+- **Derleme (Mac):** `dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r osx-arm64 --self-contained -o build/osx-arm64`; `.app` paketi `.github/workflows/build.yml` içindeki adımlarla (`packaging/macos/Info.plist`, icns, ad-hoc `codesign`) oluşturulur.
+- **Testler:** `dotnet run --project tests/PanDaF.Tests -c Release`. `PANDAF_LIBREOFFICE=1` ile LibreOffice (Windows'ta indirilir, Mac/Linux'ta kurulu olan) ve Office dönüşümleri de denenir.
+- **Arayüz testi:** `PanDaF --smoke <klasör>` tüm araçları gerçek pencerede, gerçek dosyalarla çalıştırır ve ekran görüntüleri alır (Linux'ta `xvfb-run` ile).
+- **Otomatik derleme:** Her `main` gönderiminde GitHub Actions Linux, Windows ve macOS'ta testleri ve arayüz testini çalıştırır; ekran görüntüleri `ekran-goruntuleri` dalına yazılır. Yeni sürüm için `src/PanDaF/PanDaF.csproj` içindeki `<Version>` numarasını artırıp `main`'e gönderin; testler geçerse sürüm (`v2.0.1` gibi) Windows `.exe`/`.zip` ve iki Mac `.zip`'i ile otomatik yayınlanır. İsterseniz GitHub'da **Releases → Draft a new release** ile elle de yayınlayabilirsiniz.
 
 ## Teşekkür ve lisans
 

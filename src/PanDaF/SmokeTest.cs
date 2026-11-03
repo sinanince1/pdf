@@ -1,14 +1,12 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
 using PanDaF.Core;
 using PanDaF.Views;
+using SkiaSharp;
 
 namespace PanDaF;
 
-/// "PanDaF.exe --smoke klasör" ile çalışır: gerçek pencerede her aracı açar, gerçek dosyalarla
+/// "PanDaF --smoke klasör" ile çalışır: gerçek pencerede her aracı açar, gerçek dosyalarla
 /// işlem yaptırır ve ekran görüntülerini kaydeder. Otomatik derlemede (GitHub Actions) kullanılır.
 internal static class SmokeTest
 {
@@ -21,15 +19,15 @@ internal static class SmokeTest
             if (Directory.Exists(folder)) Directory.Delete(folder, true);
             var input = Directory.CreateDirectory(Path.Combine(folder, "girdi")).FullName;
             var shots = Directory.CreateDirectory(Path.Combine(folder, "ekran")).FullName;
-            await Settle();
+            await Settle(800);
             Capture(window, Path.Combine(shots, "01-ana-sayfa.png"));
 
             // Örnek resimler: biri yatay, biri dikey, biri saydam PNG.
             var images = new[]
             {
-                Sample(Path.Combine(input, "Yatay resim.jpg"), 1600, 1000, Colors.SteelBlue, "1"),
-                Sample(Path.Combine(input, "Dikey resim.png"), 900, 1400, Colors.SeaGreen, "2"),
-                Sample(Path.Combine(input, "Çalışma kağıdı.png"), 1240, 1754, Colors.DarkOrange, "3"),
+                Sample(Path.Combine(input, "Yatay resim.jpg"), 1600, 1000, new SKColor(70, 130, 180), "1"),
+                Sample(Path.Combine(input, "Dikey resim.png"), 900, 1400, new SKColor(46, 139, 87), "2"),
+                Sample(Path.Combine(input, "Çalışma kağıdı.png"), 1240, 1754, new SKColor(255, 140, 0), "3"),
             };
 
             // PDF'ye çevir (arayüz üzerinden)
@@ -53,7 +51,7 @@ internal static class SmokeTest
             Capture(window, Path.Combine(shots, "05-sonuc.png"));
 
             // Böl
-            var split = new SplitView(window); window.Navigate(split, "PDF böl"); await Settle();
+            var split = new SplitPdfView(window); window.Navigate(split, "PDF böl"); await Settle();
             split.Load(merged[0]); await WaitUntil(() => split.Go.IsEnabled);
             Capture(window, Path.Combine(shots, "06-bol.png"));
             Click(split.Go);
@@ -81,7 +79,7 @@ internal static class SmokeTest
             var edit = new EditView(window); window.Navigate(edit, "PDF'yi düzenle"); await Settle();
             Capture(window, Path.Combine(shots, "16-duzenle-bos.png"));
             edit.Load(merged[0]);
-            await WaitUntil(() => edit.IsLoaded && edit.MarkCount == 0 && ((FrameworkElement)edit.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await WaitUntil(() => edit.MarkCount == 0 && edit.Toolbar.IsVisible, 30000);
             await Settle(600);
             edit.SmokeAdd(); await Settle();
             Capture(window, Path.Combine(shots, "17-duzenle-eklendi.png"));
@@ -95,7 +93,7 @@ internal static class SmokeTest
                 Check(words.Contains("Düzeltilmiş") && words.Contains("ĞÜŞİÖÇ"), "Eklenen Türkçe yazı PDF'de okunuyor: " + string.Join(" ", words));
                 Check(check.GetPage(1).GetImages().Count() >= 3, "Logolar sayfaya gömüldü");
             }
-            using (var raster = PdfRasterDocument.Open(edited[0])) Capture(raster.RenderBitmap(0, 72), Path.Combine(shots, "18-duzenlenmis-sayfa.png"));
+            using (var raster = PdfRasterDocument.Open(edited[0])) { using var page = raster.RenderBitmap(0, 72); File.WriteAllBytes(Path.Combine(shots, "18-duzenlenmis-sayfa.png"), Images.Png(page)); }
 
             // Yerinde yazı değiştirme (KillerPdf.Engine)
             var textPdf = Path.Combine(input, "Duyuru.pdf");
@@ -109,7 +107,7 @@ internal static class SmokeTest
             }
             var rewrite = new EditView(window); window.Navigate(rewrite, "PDF'yi düzenle"); await Settle();
             rewrite.Load(textPdf);
-            await WaitUntil(() => ((FrameworkElement)rewrite.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await WaitUntil(() => rewrite.Toolbar.IsVisible, 30000);
             await Settle(500);
             await rewrite.SmokeRewrite(1, "Saat 16.00, 2A sınıfı");
             await Settle(500);
@@ -142,7 +140,7 @@ internal static class SmokeTest
             }
             var paraView = new EditView(window); window.Navigate(paraView, "PDF'yi düzenle"); await Settle();
             paraView.Load(paraPdf);
-            await WaitUntil(() => ((FrameworkElement)paraView.FindName("Toolbar")).Visibility == Visibility.Visible, 30000);
+            await WaitUntil(() => paraView.Toolbar.IsVisible, 30000);
             await Settle(500);
             await paraView.SmokeParagraph(0, "Sevgili veliler, bu hafta okulumuzda kitap okuma etkinliği düzenlenecektir. Öğrenciler sevdikleri bir kitabı getirsin. Etkinlik cuma günü üçüncü derste yapılacaktır.");
             await Settle(500);
@@ -182,26 +180,22 @@ internal static class SmokeTest
                 var wheel = new PandaWheel((_, _) => { });
                 wheel.Preview(sample, index);
                 wheel.Show();
-                await Settle();
+                await Settle(500);
                 Capture(wheel, Path.Combine(shots, name));
                 wheel.Close();
             }
 
             // Panelden sessiz işlem: pencere açılmadan, dosyanın yanına kaydeder
-            var overlay = (Grid)window.FindName("ResultOverlay");
             var quickTask = window.QuickConvertAsync("jpg", [threePages]);
             await Settle(150);
-            CaptureToast(Path.Combine(shots, "14-bildirim-calisiyor.png"));
             var quick = await quickTask;
             Check(quick.Count == 1 && Directory.Exists(quick[0]) && Directory.GetFiles(quick[0], "*.jpg").Length == 3, "Panelden sessiz işlem: PDF → resim");
-            await Settle();
-            CaptureToast(Path.Combine(shots, "15-bildirim-hazir.png"));
             var single = await window.QuickConvertAsync("pdf", [images[0]]);
             Check(single.Count == 1 && Path.GetFileName(single[0]) == "Yatay resim.pdf" && Path.GetDirectoryName(single[0]) == Path.GetDirectoryName(images[0]), "Panelden sessiz işlem: resim → aynı klasöre aynı adla PDF");
             var combined = await window.QuickConvertAsync("pdf-combine", images);
             Check(combined.Count == 1 && PdfPages.PageCount(combined[0]) == 3, "Panelden sessiz işlem: 3 resim → tek PDF");
-            Check(overlay.Visibility != Visibility.Visible, "Sessiz işlemde uygulama penceresi sonuç göstermedi");
-            foreach (var toast in Application.Current.Windows.OfType<Toast>().ToList()) toast.Close();
+            Check(!window.ResultOverlay.IsVisible, "Sessiz işlemde uygulama penceresi sonuç göstermedi");
+            foreach (var toast in Windows.OfType<Toast>().ToList()) toast.Close();
 
             window.GoHome(); await Settle();
             Check(window.SmokeErrors.Count == 0, "Arayüz hata göstermedi" + (window.SmokeErrors.Count > 0 ? ": " + string.Join(" | ", window.SmokeErrors) : ""));
@@ -222,19 +216,20 @@ internal static class SmokeTest
         }
     }
 
+    private static IEnumerable<Window> Windows => (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows ?? [];
+
     private static void Click(Button button)
     {
         if (!button.IsEnabled) throw new InvalidOperationException($"“{button.Content}” butonu etkin değil.");
-        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
 
     private static async Task<IReadOnlyList<string>> Result(MainWindow window)
     {
-        var overlay = (Grid)window.FindName("ResultOverlay");
-        await WaitUntil(() => overlay.Visibility == Visibility.Visible || window.SmokeErrors.Count > 0, 120000);
+        await WaitUntil(() => window.ResultOverlay.IsVisible || window.SmokeErrors.Count > 0, 120000);
         if (window.SmokeErrors.Count > 0) throw new InvalidOperationException("Arayüz hatası: " + string.Join(" | ", window.SmokeErrors));
         var outputs = window.LastOutputs;
-        overlay.Visibility = Visibility.Collapsed;
+        window.ResultOverlay.IsVisible = false;
         await Settle();
         return outputs;
     }
@@ -252,45 +247,36 @@ internal static class SmokeTest
     private static async Task Settle(int milliseconds = 300)
     {
         await Task.Delay(milliseconds);
-        Application.Current.MainWindow?.UpdateLayout();
-    }
-
-    private static void Capture(BitmapSource bitmap, string path) => File.WriteAllBytes(path, Images.Png(bitmap));
-
-    private static void CaptureToast(string path)
-    {
-        if (Application.Current.Windows.OfType<Toast>().LastOrDefault() is { } toast) Capture(toast, path);
+        App.Main?.UpdateLayout();
     }
 
     private static void Capture(Window window, string path)
     {
-        if (window.Content is not FrameworkElement root || root.ActualWidth < 1) return;
-        var dpi = VisualTreeHelper.GetDpi(root);
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(root.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(root.ActualHeight * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
-        var visual = new DrawingVisual();
-        using (var context = visual.RenderOpen())
-        {
-            context.DrawRectangle((Brush)Application.Current.Resources["Bg"], null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-            context.DrawRectangle(new VisualBrush(root), null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-        }
-        bitmap.Render(visual);
-        File.WriteAllBytes(path, Images.Png(bitmap));
+        if (window.Content is not Control root || root.Bounds.Width < 1) return;
+        var scale = window.RenderScaling;
+        var size = new PixelSize((int)Math.Ceiling(root.Bounds.Width * scale), (int)Math.Ceiling(root.Bounds.Height * scale));
+        using var bitmap = new RenderTargetBitmap(size, new Vector(96 * scale, 96 * scale));
+        bitmap.Render(root);
+        bitmap.Save(path);
     }
 
-    private static string Sample(string path, int width, int height, Color color, string label)
+    private static string Sample(string path, int width, int height, SKColor color, string label)
     {
-        var visual = new DrawingVisual();
-        using (var context = visual.RenderOpen())
+        var transparent = path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && label == "2";
+        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul));
+        var canvas = surface.Canvas;
+        canvas.Clear(transparent ? SKColors.Transparent : SKColors.White);
+        using (var fill = new SKPaint { Color = color, IsAntialias = true })
+            canvas.DrawRoundRect(new SKRect(width * .1f, height * .1f, width * .9f, height * .9f), 60, 60, fill);
+        using (var font = new SKFont(SKTypeface.Default, height * .4f))
+        using (var paint = new SKPaint { Color = SKColors.White, IsAntialias = true })
         {
-            var transparent = path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && label == "2";
-            if (!transparent) context.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
-            context.DrawRoundedRectangle(new SolidColorBrush(color), null, new Rect(width * .1, height * .1, width * .8, height * .8), 60, 60);
-            var text = new FormattedText(label, System.Globalization.CultureInfo.GetCultureInfo("tr-TR"), FlowDirection.LeftToRight, new Typeface("Segoe UI"), height * .4, Brushes.White, 1);
-            context.DrawText(text, new Point((width - text.Width) / 2, (height - text.Height) / 2));
+            var textWidth = font.MeasureText(label);
+            canvas.DrawText(label, (width - textWidth) / 2, height / 2f + font.Size * .35f, font, paint);
         }
-        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-        File.WriteAllBytes(path, path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? Images.Jpeg(bitmap, 88) : Images.Png(bitmap));
+        using var image = surface.Snapshot();
+        using var data = image.Encode(path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? SKEncodedImageFormat.Jpeg : SKEncodedImageFormat.Png, 88);
+        File.WriteAllBytes(path, data.ToArray());
         return path;
     }
 }

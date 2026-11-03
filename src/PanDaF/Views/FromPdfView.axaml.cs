@@ -1,12 +1,9 @@
-using System.Windows;
-using System.Windows.Controls;
 using PanDaF.Core;
 
 namespace PanDaF.Views;
 
 public partial class FromPdfView : UserControl
 {
-    private const string Filter = "PDF dosyaları|*.pdf";
     private readonly MainWindow shell;
     private readonly FileList list = new() { Reorderable = false };
 
@@ -14,27 +11,29 @@ public partial class FromPdfView : UserControl
     {
         this.shell = shell;
         InitializeComponent();
-        var drop = new DropZone("PDF dosyalarını buraya sürükleyin", "veya bilgisayarınızdan seçin. Birden fazla dosya seçebilirsiniz.", Filter, multiple: true);
+        var drop = new DropZone("PDF dosyalarını buraya sürükleyin", "veya bilgisayarınızdan seçin. Birden fazla dosya seçebilirsiniz.", Pick.Pdf, multiple: true);
         drop.FilesChosen += Add;
         DropHost.Content = drop;
         ListHost.Content = list;
         list.Changed += Update;
         DropHelper.Attach(this, Add);
+        OptionCards.Bind(ToWord, ToWordCard); OptionCards.Bind(ToExcel, ToExcelCard); OptionCards.Bind(ToJpg, ToJpgCard);
+        OptionCards.Bind(ToPng, ToPngCard); OptionCards.Bind(ToText, ToTextCard);
     }
 
     public void Add(IReadOnlyList<string> files)
     {
         var pdfs = files.Where(FileKinds.IsPdf).ToList();
-        if (pdfs.Count < files.Count) shell.Info("Yalnızca PDF dosyaları eklenebilir.");
+        if (pdfs.Count < files.Count) _ = shell.Info("Yalnızca PDF dosyaları eklenebilir.");
         list.Add(pdfs);
     }
 
     private PdfTarget Target => ToExcel.IsChecked == true ? PdfTarget.Excel : ToJpg.IsChecked == true ? PdfTarget.Jpg : ToPng.IsChecked == true ? PdfTarget.Png : ToText.IsChecked == true ? PdfTarget.Text : PdfTarget.Word;
 
-    private void Target_Changed(object sender, RoutedEventArgs e)
+    private void Target_Changed(object? sender, RoutedEventArgs e)
     {
         if (QualityPanel is null) return;
-        QualityPanel.Visibility = Target is PdfTarget.Jpg or PdfTarget.Png ? Visibility.Visible : Visibility.Collapsed;
+        QualityPanel.IsVisible = Target is PdfTarget.Jpg or PdfTarget.Png;
         Update();
     }
 
@@ -42,32 +41,32 @@ public partial class FromPdfView : UserControl
     {
         if (Summary is null) return;
         var any = list.Files.Count > 0;
-        DropHost.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        ListPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        DropHost.IsVisible = !any;
+        ListPanel.IsVisible = any;
         Go.IsEnabled = any;
         if (!any) { Summary.Text = "Dönüştürmek için PDF ekleyin."; return; }
         Summary.Text = Target switch
         {
             PdfTarget.Word => MicrosoftOffice.HasWord ? "Microsoft Word ile Word belgesine çevrilecek."
                 : App.Converter.LibreOffice.Ready ? "LibreOffice ile Word belgesine çevrilecek."
-                : "LibreOffice ile Word belgesine çevrilecek (ilk kullanımda bir kez indirilir).",
+                : OperatingSystem.IsWindows() ? "LibreOffice ile Word belgesine çevrilecek (ilk kullanımda bir kez indirilir)." : "Word belgesine çevrilecek (LibreOffice kuruluysa daha iyi sonuç verir).",
             PdfTarget.Excel => "Her sayfa bir çalışma sayfası olur; ek program gerekmez.",
             PdfTarget.Jpg or PdfTarget.Png => "Her sayfa ayrı bir resim olarak, yeni bir klasöre kaydedilecek.",
             _ => "Metin, aynı adla .txt dosyası olarak kaydedilecek.",
         };
     }
 
-    private void AddMore_Click(object sender, RoutedEventArgs e) => Add(DropZone.Pick(Filter, multiple: true));
+    private async void AddMore_Click(object? sender, RoutedEventArgs e) => Add(await Pick.Files(this, Pick.Pdf, multiple: true));
 
-    private async void Go_Click(object sender, RoutedEventArgs e)
+    private async void Go_Click(object? sender, RoutedEventArgs e)
     {
         var files = list.Files.ToList();
         if (files.Count == 0) return;
         var target = Target;
         var converter = App.Converter;
-        if (target == PdfTarget.Word && converter.NeedsLibreOfficeForWord)
+        if (target == PdfTarget.Word && converter.NeedsLibreOfficeForWord && OperatingSystem.IsWindows())
         {
-            if (!shell.Confirm("Bu bilgisayarda Microsoft Word bulunamadı. PDF'yi Word belgesine çevirmek için ücretsiz LibreOffice bileşeni bir kez indirilecek (yaklaşık 350 MB, birkaç dakika sürebilir).\n\nİndirilsin mi?"))
+            if (!await shell.Confirm("Bu bilgisayarda Microsoft Word bulunamadı. PDF'yi Word belgesine çevirmek için ücretsiz LibreOffice bileşeni bir kez indirilecek (yaklaşık 350 MB, birkaç dakika sürebilir).\n\nİndirilsin mi?"))
                 return;
             var installed = await shell.RunAsync("LibreOffice hazırlanıyor", async (_, progress, token) => { await converter.LibreOffice.InstallAsync(progress, token); return [converter.LibreOffice.Executable ?? ""]; });
             if (installed is null) return;

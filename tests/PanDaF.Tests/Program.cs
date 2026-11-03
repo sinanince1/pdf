@@ -1,17 +1,13 @@
 using System.IO;
 using System.IO.Compression;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using PanDaF.Core;
 using PdfSharp.Pdf.IO;
+using SkiaSharp;
 
-// PanDaF motor testleri. Windows'ta çalışır: dotnet run --project tests/PanDaF.Tests
-// PANDAF_LIBREOFFICE=1 ise LibreOffice gerçekten indirilir, doğrulanır ve Office dönüşümleri denenir.
+// PanDaF motor testleri. Windows, macOS ve Linux'ta çalışır: dotnet run --project tests/PanDaF.Tests
+// PANDAF_LIBREOFFICE=1 ise LibreOffice gerçekten indirilir (Windows) veya kurulu olan kullanılır ve Office dönüşümleri denenir.
 internal static class Program
 {
-    // WPF çizim nesneleri (örnek resimler) STA iş parçacığı ister.
-    [STAThread]
     private static int Main() => Run().GetAwaiter().GetResult();
 
     private static async Task<int> Run()
@@ -33,38 +29,23 @@ internal static class Program
         }
         string Folder(string name) => Directory.CreateDirectory(Path.Combine(root, name)).FullName;
 
-        string Sample(string path, int width, int height, Color color, ushort orientation = 1)
+        string Sample(string path, int width, int height, SKColor color, ushort orientation = 1)
         {
-            var visual = new DrawingVisual();
-            using (var context = visual.RenderOpen())
-            {
-                context.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
-                context.DrawRectangle(new SolidColorBrush(color), null, new Rect(0, 0, width / 2.0, height / 3.0));
-            }
-            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-            bitmap.Render(visual);
-            BitmapEncoder encoder;
-            if (path.EndsWith(".jpg"))
-            {
-                var metadata = new BitmapMetadata("jpg");
-                if (orientation != 1) metadata.SetQuery("/app1/ifd/{ushort=274}", orientation);
-                encoder = new JpegBitmapEncoder { QualityLevel = 90 };
-                encoder.Frames.Add(BitmapFrame.Create(new FormatConvertedBitmap(bitmap, PixelFormats.Bgr24, null, 0), null, metadata, null));
-            }
-            else
-            {
-                encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            }
-            using var file = File.Create(path);
-            encoder.Save(file);
+            using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul));
+            surface.Canvas.Clear(SKColors.White);
+            using (var paint = new SKPaint { Color = color }) surface.Canvas.DrawRect(new SKRect(0, 0, width / 2f, height / 3f), paint);
+            using var image = surface.Snapshot();
+            using var data = image.Encode(path.EndsWith(".jpg") ? SKEncodedImageFormat.Jpeg : SKEncodedImageFormat.Png, 90);
+            var bytes = data.ToArray();
+            if (orientation != 1) bytes = TestImages.WithExifOrientation(bytes, orientation);
+            File.WriteAllBytes(path, bytes);
             return path;
         }
 
         var images = Folder("resimler");
-        var landscape = Sample(Path.Combine(images, "yatay.jpg"), 1600, 1000, Colors.SteelBlue);
-        var portrait = Sample(Path.Combine(images, "dikey.png"), 900, 1400, Colors.SeaGreen);
-        var rotated = Sample(Path.Combine(images, "telefon fotoğrafı.jpg"), 1200, 800, Colors.Firebrick, orientation: 6);
+        var landscape = Sample(Path.Combine(images, "yatay.jpg"), 1600, 1000, new SKColor(70, 130, 180));
+        var portrait = Sample(Path.Combine(images, "dikey.png"), 900, 1400, new SKColor(46, 139, 87));
+        var rotated = Sample(Path.Combine(images, "telefon fotoğrafı.jpg"), 1200, 800, new SKColor(178, 34, 34), orientation: 6);
         string threePages = "";
 
         await Test("Sayfa aralığı yazımı", () =>
@@ -79,8 +60,8 @@ internal static class Program
 
         await Test("Telefon fotoğrafı yönü (EXIF)", () =>
         {
-            var image = Images.Load(rotated, out var orientation);
-            Check(orientation == 6 && image.PixelWidth == 800 && image.PixelHeight == 1200, $"döndürülmüş fotoğraf dik açıldı ({image.PixelWidth}x{image.PixelHeight})");
+            using var image = Images.Load(rotated, out var orientation);
+            Check(orientation == 6 && image.Width == 800 && image.Height == 1200, $"döndürülmüş fotoğraf dik açıldı ({image.Width}x{image.Height})");
             return Task.CompletedTask;
         });
 
@@ -131,12 +112,13 @@ internal static class Program
             var jpg = await converter.FromPdfAsync([threePages], Folder("jpg"), PdfTarget.Jpg, 72, null, default);
             Check(Directory.Exists(jpg[0]) && Directory.GetFiles(jpg[0], "*.jpg").Length == 3, "3 JPG");
             var first = Directory.GetFiles(jpg[0], "*.jpg").Order().First();
-            var frame = BitmapDecoder.Create(new Uri(first), BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
-            Check(frame.PixelWidth == 842, $"72 DPI yatay A4 genişliği ({frame.PixelWidth} px)");
+            using var frame = SKBitmap.Decode(first);
+            Check(frame.Width == 842, $"72 DPI yatay A4 genişliği ({frame.Width} px)");
             var png = await converter.FromPdfAsync([threePages], Folder("png"), PdfTarget.Png, 50, null, default);
             Check(Directory.GetFiles(png[0], "*.png").Length == 3, "3 PNG");
             using var raster = PdfRasterDocument.Open(threePages);
-            Check(raster.PageCount == 3 && raster.RenderBitmap(1, 36).PixelHeight == 421, "önizleme çizimi");
+            using var preview = raster.RenderBitmap(1, 36);
+            Check(raster.PageCount == 3 && preview.Height == 421, "önizleme çizimi");
         });
 
         await Test("PDF → Excel: tablo çıkarma", async () =>
@@ -249,16 +231,20 @@ internal static class Program
             return Task.CompletedTask;
         });
 
-        await Test("Yedek yazı tipi eşleme (aynı aile, Windows'tan)", () =>
+        await Test("Yedek yazı tipi eşleme (aynı aile, bilgisayardaki yazı tiplerinden)", () =>
         {
             var (family, bold, italic) = TextRewriter.Parse("ABCDEF+Calibri-Bold", false);
             Check(family == "Calibri" && bold && !italic, $"Calibri-Bold çözüldü: {family} kalın={bold}");
             var (f2, b2, i2) = TextRewriter.Parse("TimesNewRomanPS-BoldItalicMT", false);
             Check(f2 == "Times New Roman" && b2 && i2, $"Times New Roman BoldItalic çözüldü: {f2}");
-            var calibri = TextRewriter.FindFontFile("Calibri", true, false);
-            Check(calibri is not null && calibri.EndsWith("calibrib.ttf", StringComparison.OrdinalIgnoreCase), "Calibri Bold dosyası bulundu: " + calibri);
-            var arial = TextRewriter.FindFontFile("Arial", false, true);
-            Check(arial is not null && arial.EndsWith("ariali.ttf", StringComparison.OrdinalIgnoreCase), "Arial Italic dosyası bulundu: " + arial);
+            if (OperatingSystem.IsWindows())
+            {
+                var calibri = TextRewriter.FindFontFile("Calibri", true, false);
+                Check(calibri is not null && calibri.EndsWith("calibrib.ttf", StringComparison.OrdinalIgnoreCase), "Calibri Bold dosyası bulundu: " + calibri);
+                var arial = TextRewriter.FindFontFile("Arial", false, true);
+                Check(arial is not null && arial.EndsWith("ariali.ttf", StringComparison.OrdinalIgnoreCase), "Arial Italic dosyası bulundu: " + arial);
+            }
+            else Console.WriteLine("  BİLGİ Arial: " + (TextRewriter.FindFontFile("Arial", false, false) ?? "(yok, yedek kullanılacak)"));
             Check(TextRewriter.FindFontFile("BöyleBirYazıTipiYok", false, false) is null, "bilinmeyen aile → Arial'a düşer");
             Check(TextRewriter.SubstituteFor("ABCDEF+Calibri", false) is not null, "yedek yazı tipi yüklendi");
             return Task.CompletedTask;

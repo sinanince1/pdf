@@ -1,41 +1,49 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Platform.Storage;
+using SkiaSharp;
 using PanDaF.Core;
 
 namespace PanDaF.Views;
 
 internal static class Ui
 {
-    public static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
-    public static Style Style(string key) => (Style)Application.Current.Resources[key];
-    public static FontFamily IconFont => (FontFamily)Application.Current.Resources["IconFont"];
+    public static IBrush Brush(string key) => (IBrush)Application.Current!.FindResource(key)!;
+    public static Geometry Icon(string key) => (Geometry)Application.Current!.FindResource(key)!;
 
-    public static TextBlock Icon(string glyph, double size, Brush? color = null) => new()
+    public static PathIcon IconControl(string key, double size = 16, IBrush? color = null)
     {
-        Text = glyph, FontFamily = IconFont, FontSize = size, Foreground = color ?? Brush("Ink"),
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
-    };
+        var icon = new PathIcon { Data = Icon(key), Width = size, Height = size, VerticalAlignment = VerticalAlignment.Center };
+        if (color is not null) icon.Foreground = color;
+        return icon;
+    }
 
-    public static Button IconButton(string glyph, string tip, RoutedEventHandler click, bool enabled = true)
+    public static Button IconButton(string iconKey, string tip, EventHandler<RoutedEventArgs> click, bool enabled = true)
     {
-        var button = new Button { Content = glyph, Style = Style("IconButton"), ToolTip = tip, IsEnabled = enabled };
-        AutomationName(button, tip);
+        var button = new Button { Content = IconControl(iconKey, 15), IsEnabled = enabled };
+        button.Classes.Add("icon");
+        ToolTip.SetTip(button, tip);
         button.Click += click;
         return button;
     }
 
-    public static void AutomationName(DependencyObject element, string name) =>
-        System.Windows.Automation.AutomationProperties.SetName(element, name);
-
-    public static string Glyph(string path) => FileKinds.Extension(path) switch
+    public static StackPanel IconText(string iconKey, string text, double size = 15)
     {
-        "pdf" => "",
-        var e when FileKinds.Images.Contains(e) => "",
-        var e when FileKinds.Slides.Contains(e) => "",
-        var e when FileKinds.Sheets.Contains(e) => "",
-        _ => "",
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        panel.Children.Add(IconControl(iconKey, size));
+        panel.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
+        return panel;
+    }
+
+    public static string IconFor(string path) => FileKinds.Extension(path) switch
+    {
+        "pdf" => "IconPdf",
+        var e when FileKinds.Images.Contains(e) => "IconImage",
+        var e when FileKinds.Sheets.Contains(e) => "IconTable",
+        _ => "IconWord",
     };
 
     public static string Kind(string path) => FileKinds.Extension(path) switch
@@ -47,27 +55,72 @@ internal static class Ui
         var e when FileKinds.WordDocs.Contains(e) => "Word belgesi",
         _ => "Dosya",
     };
+
+    public static IBrush BrushOf(string hex) => new SolidColorBrush(Color.Parse(hex));
+}
+
+/// SkiaSharp bitmap'lerini Avalonia'nın çizebileceği bitmap'e çevirir.
+internal static class Pictures
+{
+    public static Bitmap ToBitmap(SKBitmap source)
+    {
+        using var converted = source.ColorType == SKColorType.Bgra8888 && source.AlphaType == SKAlphaType.Premul ? null : source.Copy(SKColorType.Bgra8888);
+        var bitmap = converted ?? source;
+        var result = new WriteableBitmap(new PixelSize(bitmap.Width, bitmap.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        using (var frame = result.Lock())
+        {
+            var rowBytes = bitmap.Width * 4;
+            for (var y = 0; y < bitmap.Height; y++)
+                unsafe { Buffer.MemoryCopy((byte*)bitmap.GetPixels() + y * bitmap.RowBytes, (byte*)frame.Address + y * frame.RowBytes, rowBytes, rowBytes); }
+        }
+        return result;
+    }
+
+    public static Bitmap FromPng(byte[] png) { using var stream = new MemoryStream(png); return new Bitmap(stream); }
+
+    public static byte[] Asset(string name)
+    {
+        using var stream = AssetLoader.Open(new Uri($"avares://PanDaF/Assets/{name}"));
+        using var memory = new MemoryStream(); stream.CopyTo(memory); return memory.ToArray();
+    }
+}
+
+/// Dosya seçme pencereleri.
+internal static class Pick
+{
+    public static readonly FilePickerFileType Pdf = new("PDF dosyaları") { Patterns = ["*.pdf"] };
+    public static readonly FilePickerFileType Images = new("Resimler") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.jfif", "*.bmp", "*.gif", "*.tif", "*.tiff", "*.webp", "*.heic"] };
+    public static readonly FilePickerFileType Convertible = new("Belgeler ve resimler") { Patterns = ["*.doc", "*.docx", "*.odt", "*.rtf", "*.ppt", "*.pptx", "*.pps", "*.ppsx", "*.odp", "*.xls", "*.xlsx", "*.ods", "*.png", "*.jpg", "*.jpeg", "*.jfif", "*.bmp", "*.gif", "*.tif", "*.tiff", "*.webp", "*.heic"] };
+
+    public static async Task<string[]> Files(Visual owner, FilePickerFileType filter, bool multiple)
+    {
+        var top = TopLevel.GetTopLevel(owner);
+        if (top is null) return [];
+        var picked = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = multiple, Title = "Dosya seçin", FileTypeFilter = [filter] });
+        return picked.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Cast<string>().ToArray();
+    }
 }
 
 /// Pencereye dosya sürükleyip bırakmayı etkinleştirir. Klasör bırakılırsa içindeki dosyalar alınır.
 internal static class DropHelper
 {
-    public static void Attach(UIElement target, Action<string[]> onFiles)
+    public static void Attach(Control target, Action<string[]> onFiles)
     {
-        target.AllowDrop = true;
-        target.DragOver += (_, e) =>
+        DragDrop.SetAllowDrop(target, true);
+        target.AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; });
+        target.AddHandler(DragDrop.DropEvent, (_, e) =>
         {
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-            e.Effects = DragDropEffects.Copy;
+            var files = Paths(e.Data);
+            if (files.Length == 0) return;
             e.Handled = true;
-        };
-        target.Drop += (_, e) =>
-        {
-            if (e.Data.GetData(DataFormats.FileDrop) is not string[] items) return;
-            e.Handled = true;
-            var files = Expand(items);
-            if (files.Length > 0) onFiles(files);
-        };
+            onFiles(files);
+        });
+    }
+
+    public static string[] Paths(IDataObject data)
+    {
+        var items = data.GetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Cast<string>() ?? [];
+        return Expand(items);
     }
 
     public static string[] Expand(IEnumerable<string> items)
@@ -89,53 +142,41 @@ internal static class DropHelper
 /// Kesikli çizgili "dosyaları buraya bırakın" alanı.
 internal sealed class DropZone : UserControl
 {
-    private readonly System.Windows.Shapes.Rectangle frame;
-    private readonly string filter;
+    private readonly Border frame;
+    private readonly FilePickerFileType filter;
     private readonly bool multiple;
     public event Action<string[]>? FilesChosen;
 
-    public DropZone(string title, string subtitle, string filter, bool multiple)
+    public DropZone(string title, string subtitle, FilePickerFileType filter, bool multiple)
     {
         this.filter = filter; this.multiple = multiple;
-        frame = new System.Windows.Shapes.Rectangle
-        {
-            Stroke = Ui.Brush("Line"), StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 6, 4 }, RadiusX = 18, RadiusY = 18,
-            Fill = Ui.Brush("Card"), SnapsToDevicePixels = true,
-        };
-        var circle = new Border { Width = 64, Height = 64, CornerRadius = new CornerRadius(32), Background = Ui.Brush("PrimarySoft"), Margin = new Thickness(0, 0, 0, 14), Child = Ui.Icon("", 26, Ui.Brush("Primary")) };
-        var button = new Button { Content = multiple ? "Dosyaları seç" : "Dosya seç", Style = Ui.Style("PrimaryButton"), Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
-        button.Click += (_, _) => Browse();
+        var circle = new Border { Width = 64, Height = 64, CornerRadius = new CornerRadius(32), Background = Ui.Brush("PrimarySoft"), Margin = new Thickness(0, 0, 0, 14), HorizontalAlignment = HorizontalAlignment.Center, Child = Ui.IconControl("IconUpload", 26, Ui.Brush("Primary")) };
+        var button = new Button { Content = multiple ? "Dosyaları seç" : "Dosya seç", Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+        button.Classes.Add("primary");
+        button.Click += async (_, _) => await Browse();
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24, 36, 24, 36) };
         stack.Children.Add(circle);
-        stack.Children.Add(new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+        stack.Children.Add(new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
         stack.Children.Add(new TextBlock { Text = subtitle, Foreground = Ui.Brush("Muted"), HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
         stack.Children.Add(button);
-        var grid = new Grid { MinHeight = 260 };
-        grid.Children.Add(frame);
-        grid.Children.Add(stack);
-        Content = grid;
-        AllowDrop = true;
-        DragEnter += (_, e) => { if (e.Data.GetDataPresent(DataFormats.FileDrop)) Highlight(true); };
-        DragLeave += (_, _) => Highlight(false);
-        Drop += (_, _) => Highlight(false);
+        frame = new Border { MinHeight = 260, BorderBrush = Ui.Brush("Line"), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(18), Background = Ui.Brush("Card"), Child = stack };
+        Content = frame;
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragEnterEvent, (_, e) => { if (e.Data.Contains(DataFormats.Files)) Highlight(true); });
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => Highlight(false));
+        AddHandler(DragDrop.DropEvent, (_, _) => Highlight(false));
     }
 
     private void Highlight(bool on)
     {
-        frame.Stroke = Ui.Brush(on ? "Primary" : "Line");
-        frame.Fill = Ui.Brush(on ? "PrimarySoft" : "Card");
+        frame.BorderBrush = Ui.Brush(on ? "Primary" : "Line");
+        frame.Background = Ui.Brush(on ? "PrimarySoft" : "Card");
     }
 
-    public void Browse()
+    public async Task Browse()
     {
-        var files = Pick(filter, multiple);
+        var files = await Pick.Files(this, filter, multiple);
         if (files.Length > 0) FilesChosen?.Invoke(files);
-    }
-
-    public static string[] Pick(string filter, bool multiple)
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = filter, Multiselect = multiple, Title = "Dosya seçin" };
-        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FileNames : [];
     }
 }
 
@@ -175,32 +216,29 @@ internal sealed class FileList : UserControl
         for (var i = 0; i < Files.Count; i++)
         {
             var index = i; var path = Files[i];
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
+            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto") };
             var number = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = Ui.Brush("Hover"), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = (i + 1).ToString(), FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                Child = new TextBlock { Text = (i + 1).ToString(), FontSize = 13, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
             grid.Children.Add(number);
-            var icon = Ui.Icon(Ui.Glyph(path), 20, Ui.Brush("Primary")); icon.Margin = new Thickness(0, 0, 12, 0);
+            var icon = Ui.IconControl(Ui.IconFor(path), 20, Ui.Brush("Primary")); icon.Margin = new Thickness(0, 0, 12, 0);
             Grid.SetColumn(icon, 1); grid.Children.Add(icon);
 
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = Path.GetFileName(path), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = path });
+            var name = new TextBlock { Text = Path.GetFileName(path), FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            ToolTip.SetTip(name, path);
+            text.Children.Add(name);
             var detail = new TextBlock { Text = Ui.Kind(path), FontSize = 13, Foreground = Ui.Brush("Muted") };
             text.Children.Add(detail);
             Grid.SetColumn(text, 2); grid.Children.Add(text);
-            Describe(path, detail);
+            _ = Describe(path, detail);
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             if (Reorderable)
             {
-                buttons.Children.Add(Ui.IconButton("", "Yukarı taşı", (_, _) => Move(index, -1), index > 0));
-                buttons.Children.Add(Ui.IconButton("", "Aşağı taşı", (_, _) => Move(index, 1), index < Files.Count - 1));
+                buttons.Children.Add(Ui.IconButton("IconUp", "Yukarı taşı", (_, _) => Move(index, -1), index > 0));
+                buttons.Children.Add(Ui.IconButton("IconDown", "Aşağı taşı", (_, _) => Move(index, 1), index < Files.Count - 1));
             }
-            buttons.Children.Add(Ui.IconButton("", "Listeden kaldır", (_, _) => Remove(index)));
+            buttons.Children.Add(Ui.IconButton("IconClose", "Listeden kaldır", (_, _) => Remove(index)));
             Grid.SetColumn(buttons, 3); grid.Children.Add(buttons);
 
             rows.Children.Add(new Border
@@ -212,7 +250,7 @@ internal sealed class FileList : UserControl
         Changed?.Invoke();
     }
 
-    private async void Describe(string path, TextBlock target)
+    private async Task Describe(string path, TextBlock target)
     {
         if (!FileKinds.IsPdf(path)) return;
         if (!details.TryGetValue(path, out var text))
@@ -222,5 +260,17 @@ internal sealed class FileList : UserControl
             details[path] = text;
         }
         target.Text = text;
+    }
+}
+
+/// Seçenek kartı: RadioButton + çerçeve; seçiliyken çerçeve vurgulanır.
+internal static class OptionCards
+{
+    public static void Bind(RadioButton radio, Border border)
+    {
+        void Update() => border.Classes.Set("selected", radio.IsChecked == true);
+        radio.IsCheckedChanged += (_, _) => Update();
+        border.PointerPressed += (_, _) => radio.IsChecked = true;
+        Update();
     }
 }

@@ -1,0 +1,118 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.EditView" Focusable="True">
+  <Grid Margin="20,16,20,16" RowDefinitions="Auto,*,Auto">
+
+    <Grid>
+      <ContentControl Name="DropHost" Focusable="False" Margin="20,12,20,0"/>
+      <!-- Araç çubuğu -->
+      <Border Name="Toolbar" IsVisible="False" Padding="8,6" CornerRadius="12" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+        <DockPanel>
+          <Border Name="FindPanel" DockPanel.Dock="Bottom" IsVisible="False" Margin="0,8,0,0" Padding="10,8" CornerRadius="10" Background="{StaticResource PrimarySoft}">
+            <WrapPanel VerticalAlignment="Center">
+              <TextBlock Text="Bul:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox Name="FindBox" Width="200" Margin="0,0,12,0"/>
+              <TextBlock Text="Değiştir:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <TextBox Name="ReplaceBox" Width="200" Margin="0,0,12,0"/>
+              <CheckBox Name="CaseBox" Content="Büyük/küçük harfe duyarlı" VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <Button Content="Tümünü değiştir" Classes="primary" FontSize="14" Padding="16,7" Click="ReplaceAll_Click"/>
+              <Button Content="Kapat" Classes="ghost" Margin="6,0,0,0" Click="FindReplace_Click"/>
+            </WrapPanel>
+          </Border>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Name="UndoButton" Classes="ghost" Click="Undo_Click" IsEnabled="False" ToolTip.Tip="Geri al (Ctrl+Z)"><PathIcon Data="{StaticResource IconUndo}" Width="15" Height="15"/></Button>
+            <Button Name="DeleteButton" Classes="ghost" Click="Delete_Click" IsEnabled="False" ToolTip.Tip="Seçili öğeyi sil (Delete)"><PathIcon Data="{StaticResource IconDelete}" Width="15" Height="15"/></Button>
+          </StackPanel>
+          <WrapPanel VerticalAlignment="Center">
+            <RadioButton Name="SelectTool" Classes="tool" GroupName="Tool" IsChecked="True" ToolTip.Tip="Seç ve taşı">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconCursor}" Width="14" Height="14"/><TextBlock Text="Seç"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="RewriteTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Var olan yazıyı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconEdit}" Width="14" Height="14"/><TextBlock Text="Yazıyı değiştir"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="ParagraphTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Paragrafı değiştir: paragrafa tıklayın, metni düzenleyin, Ctrl+Enter ile uygulayın. Satırlar kutuya göre yeniden akar.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconParagraph}" Width="14" Height="14"/><TextBlock Text="Paragraf"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="TextTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Yeni yazı kutusu: sayfada tıklayıp yazın">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconText}" Width="14" Height="14"/><TextBlock Text="Yeni yazı"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="WhiteoutTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Kapat: bir alanı sayfa rengiyle örter; üstüne yeni yazı yazabilirsiniz">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconEraser}" Width="14" Height="14"/><TextBlock Text="Kapat"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="HighlightTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Vurgula (fosforlu kalem)">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconHighlight}" Width="14" Height="14"/><TextBlock Text="Vurgula"/></StackPanel>
+            </RadioButton>
+            <RadioButton Name="PenTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Kalem: serbest çizim">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconPen}" Width="14" Height="14"/><TextBlock Text="Kalem"/></StackPanel>
+            </RadioButton>
+            <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
+            <Button Classes="ghost" Click="AddImage_Click" ToolTip.Tip="Bilgisayarınızdan resim ekleyin">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconImage}" Width="14" Height="14"/><TextBlock Text="Resim"/></StackPanel>
+            </Button>
+            <Button Classes="ghost" Click="AddIstek_Click" ToolTip.Tip="İSTEK logosunu sol üste ekle">
+              <StackPanel Orientation="Horizontal" Spacing="6"><Image Source="avares://PanDaF/Assets/LogoIstek.png" Height="18"/><TextBlock Text="İSTEK"/></StackPanel>
+            </Button>
+            <Button Classes="ghost" Click="AddIB_Click" ToolTip.Tip="IB logosunu sağ üste ekle">
+              <StackPanel Orientation="Horizontal" Spacing="6"><Image Source="avares://PanDaF/Assets/LogoIB.png" Height="18"/><TextBlock Text="IB"/></StackPanel>
+            </Button>
+            <Button Classes="ghost" Click="AddBoth_Click" ToolTip.Tip="Her sayfaya iki logoyu da ekle" Content="İkisini her sayfaya"/>
+            <Button Classes="ghost" Click="AddSignature_Click" ToolTip.Tip="Kayıtlı imzanızı sağ alta ekler. İlk kullanımda imza resminizi seçersiniz; Ayarlar'dan değiştirilebilir.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconSignature}" Width="14" Height="14"/><TextBlock Text="İmza"/></StackPanel>
+            </Button>
+            <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
+            <Button Classes="ghost" Click="FindReplace_Click" ToolTip.Tip="Tüm belgede bir yazıyı bulup yerinde değiştir (ör. 2025-2026 → 2026-2027)">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconSearch}" Width="14" Height="14"/><TextBlock Text="Bul ve değiştir"/></StackPanel>
+            </Button>
+            <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
+            <!-- Yazı seçenekleri -->
+            <StackPanel Name="TextOptions" Orientation="Horizontal" VerticalAlignment="Center">
+              <ComboBox Name="FontSizeBox" Width="72" FontSize="13" SelectedIndex="2" SelectionChanged="FontSize_Changed" ToolTip.Tip="Yazı boyutu">
+                <ComboBoxItem Content="10"/><ComboBoxItem Content="12"/><ComboBoxItem Content="14"/><ComboBoxItem Content="16"/><ComboBoxItem Content="18"/><ComboBoxItem Content="22"/><ComboBoxItem Content="28"/><ComboBoxItem Content="36"/>
+              </ComboBox>
+              <ToggleButton Name="BoldBox" Content="K" FontWeight="Bold" Width="30" Height="28" Margin="6,0,0,0" IsCheckedChanged="TextOption_Changed" ToolTip.Tip="Kalın"/>
+            </StackPanel>
+            <StackPanel Name="Swatches" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <StackPanel Name="PenOptions" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0" IsVisible="False">
+              <TextBlock Text="Kalınlık" Classes="small" VerticalAlignment="Center" Margin="0,0,6,0"/>
+              <Slider Name="PenWidth" Width="90" Minimum="1" Maximum="12" Value="2.5" VerticalAlignment="Center"/>
+            </StackPanel>
+          </WrapPanel>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- Sayfa -->
+    <Border Grid.Row="1" Name="PageArea" IsVisible="False" Margin="0,10,0,0" Background="#DED9D2" CornerRadius="12" ClipToBounds="True">
+      <ScrollViewer Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Focusable="False" SizeChanged="Scroller_SizeChanged">
+        <Grid Name="PageHost" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="24">
+          <LayoutTransformControl Name="ZoomHost">
+            <Border Background="White">
+              <Grid>
+                <Image Name="PageImage" Stretch="Fill"/>
+                <Canvas Name="Overlay" Background="Transparent"/>
+              </Grid>
+            </Border>
+          </LayoutTransformControl>
+        </Grid>
+      </ScrollViewer>
+    </Border>
+
+    <!-- Alt çubuk -->
+    <Border Grid.Row="2" Name="Footer" IsVisible="False" Margin="0,12,0,0" Padding="0,12,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="SaveButton" DockPanel.Dock="Right" Classes="primary" Content="Yeni PDF olarak kaydet" Click="Save_Click"/>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Classes="ghost" Click="PrevPage_Click" ToolTip.Tip="Önceki sayfa (Page Up)"><PathIcon Data="{StaticResource IconLeft}" Width="14" Height="14"/></Button>
+          <TextBlock Name="PageLabel" VerticalAlignment="Center" Margin="6,0" MinWidth="90" TextAlignment="Center"/>
+          <Button Classes="ghost" Click="NextPage_Click" ToolTip.Tip="Sonraki sayfa (Page Down)"><PathIcon Data="{StaticResource IconRight}" Width="14" Height="14"/></Button>
+          <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="10,0"/>
+          <Button Classes="ghost" Click="ZoomOut_Click" ToolTip.Tip="Uzaklaş"><PathIcon Data="{StaticResource IconZoomOut}" Width="14" Height="14"/></Button>
+          <TextBlock Name="ZoomLabel" VerticalAlignment="Center" Margin="6,0" MinWidth="44" TextAlignment="Center" Text="100%"/>
+          <Button Classes="ghost" Click="ZoomIn_Click" ToolTip.Tip="Yakınlaş"><PathIcon Data="{StaticResource IconZoomIn}" Width="14" Height="14"/></Button>
+          <Button Classes="ghost" Click="ZoomFit_Click" Content="Sığdır"/>
+          <TextBlock Name="Summary" VerticalAlignment="Center" Margin="18,0,0,0" Classes="muted" TextWrapping="Wrap"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

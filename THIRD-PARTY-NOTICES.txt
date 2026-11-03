@@ -17,14 +17,21 @@ Bundled libraries (full license texts in the licenses/ folder):
   https://github.com/empira/PDFsharp — licenses/PDFsharp-MIT.txt
 - PdfPig 0.1.16 — Eliot Jones and contributors — Apache-2.0
   https://github.com/UglyToad/PdfPig — licenses/PdfPig-Apache-2.0.txt
-- PDFium (via bblanchon.PDFium.Win32 155.0.8044) — BSD-style / Apache-2.0 packaging
+- PDFium (via bblanchon.PDFium.Win32 / .macOS / .Linux 155.0.8044) — BSD-style / Apache-2.0 packaging
   https://pdfium.googlesource.com/pdfium/ — licenses/PDFium-THIRD-PARTY-NOTICES.txt
-- .NET runtime and WPF — Microsoft and .NET Foundation — MIT
-  licenses/dotnet-MIT.txt, licenses/WPF-MIT.txt, licenses/dotnet-THIRD-PARTY-NOTICES.txt
+- Avalonia 11.3.2 (Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent, Avalonia.Fonts.Inter) — AvaloniaUI OÜ and contributors — MIT
+  https://github.com/AvaloniaUI/Avalonia — licenses/Avalonia-MIT.txt
+- Inter font (bundled by Avalonia.Fonts.Inter) — Rasmus Andersson — SIL Open Font License 1.1
+  https://github.com/rsms/inter — licenses/Inter-OFL.txt
+- SkiaSharp 3.119.0 — Microsoft and contributors — MIT
+  https://github.com/mono/SkiaSharp — licenses/SkiaSharp-MIT.txt
+- .NET runtime — Microsoft and .NET Foundation — MIT
+  licenses/dotnet-MIT.txt, licenses/dotnet-THIRD-PARTY-NOTICES.txt
 
 Not bundled:
 
-- LibreOffice (MPL-2.0 and others) is downloaded on first use only on computers
-  without Microsoft Office, directly from The Document Foundation, and verified
-  with a pinned SHA-256 checksum. It is stored in %LOCALAPPDATA%\PanDaF\araclar.
-- Microsoft Office, when installed, is used through its own automation interface.
+- LibreOffice (MPL-2.0 and others): on Windows it is downloaded on first use only on
+  computers without Microsoft Office, directly from The Document Foundation, verified
+  with a pinned SHA-256 checksum, and stored in %LOCALAPPDATA%\PanDaF\araclar.
+  On macOS and Linux an installed LibreOffice is used if present.
+- Microsoft Office (Windows only), when installed, is used through its own automation interface.

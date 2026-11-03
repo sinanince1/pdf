@@ -1,12 +1,9 @@
-using System.Windows;
-using System.Windows.Controls;
 using PanDaF.Core;
 
 namespace PanDaF.Views;
 
 public partial class MergeView : UserControl
 {
-    private const string Filter = "PDF dosyaları|*.pdf";
     private readonly MainWindow shell;
     private readonly FileList list = new();
 
@@ -14,7 +11,7 @@ public partial class MergeView : UserControl
     {
         this.shell = shell;
         InitializeComponent();
-        var drop = new DropZone("PDF dosyalarını buraya sürükleyin", "veya bilgisayarınızdan seçin. Birden fazla dosya seçebilirsiniz.", Filter, multiple: true);
+        var drop = new DropZone("PDF dosyalarını buraya sürükleyin", "veya bilgisayarınızdan seçin. Birden fazla dosya seçebilirsiniz.", Pick.Pdf, multiple: true);
         drop.FilesChosen += Add;
         DropHost.Content = drop;
         ListHost.Content = list;
@@ -25,15 +22,15 @@ public partial class MergeView : UserControl
     public void Add(IReadOnlyList<string> files)
     {
         var pdfs = files.Where(FileKinds.IsPdf).ToList();
-        if (pdfs.Count < files.Count) shell.Info("Yalnızca PDF dosyaları eklenebilir. Diğer dosyaları önce “PDF'ye çevir” aracıyla PDF yapabilirsiniz.");
+        if (pdfs.Count < files.Count) _ = shell.Info("Yalnızca PDF dosyaları eklenebilir. Diğer dosyaları önce “PDF'ye çevir” aracıyla PDF yapabilirsiniz.");
         list.Add(pdfs);
     }
 
     private void Update()
     {
         var any = list.Files.Count > 0;
-        DropHost.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        ListPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        DropHost.IsVisible = !any;
+        ListPanel.IsVisible = any;
         Go.IsEnabled = list.Files.Count >= 2;
         Summary.Text = list.Files.Count switch
         {
@@ -43,11 +40,12 @@ public partial class MergeView : UserControl
         };
     }
 
-    private void AddMore_Click(object sender, RoutedEventArgs e) => Add(DropZone.Pick(Filter, multiple: true));
+    private async void AddMore_Click(object? sender, RoutedEventArgs e) => Add(await Pick.Files(this, Pick.Pdf, multiple: true));
 
-    private async void Go_Click(object sender, RoutedEventArgs e)
+    private async void Go_Click(object? sender, RoutedEventArgs e)
     {
         var files = list.Files.ToList();
+        if (files.Count < 2) return;
         var destination = OutputFolder.For(files[0]);
         var result = await shell.RunAsync("PDF'ler birleştiriliyor", (lossy, progress, token) =>
             Task.Run<IReadOnlyList<string>>(() => [PdfPages.Merge(files, destination, lossy, token)], token));

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>PanDaF</string>
+  <key>CFBundleDisplayName</key><string>PanDaF</string>
+  <key>CFBundleIdentifier</key><string>com.sinanince.pandaf</string>
+  <key>CFBundleExecutable</key><string>PanDaF</string>
+  <key>CFBundleIconFile</key><string>PanDaF</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleDevelopmentRegion</key><string>tr</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSHumanReadableCopyright</key><string>Sinan İnce 2026 · GPL-3.0</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>PDF belgesi</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>com.adobe.pdf</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Resim</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key><array><string>public.image</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Office belgesi</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>org.openxmlformats.wordprocessingml.document</string>
+        <string>org.openxmlformats.presentationml.presentation</string>
+        <string>org.openxmlformats.spreadsheetml.sheet</string>
+        <string>com.microsoft.word.doc</string>
+        <string>com.microsoft.powerpoint.ppt</string>
+        <string>com.microsoft.excel.xls</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

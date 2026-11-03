@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.MergeView">
+  <Grid Margin="40,28,40,24" MaxWidth="920" RowDefinitions="Auto,*,Auto">
+    <StackPanel>
+      <TextBlock Classes="title" Text="PDF birleştir"/>
+      <TextBlock Classes="subtitle" Text="PDF'leri ekleyin, okları kullanarak sıralayın. Listede en üstteki dosya, yeni PDF'nin başında olur."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl Name="DropHost" Focusable="False"/>
+      <DockPanel Name="ListPanel" IsVisible="False">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+          <Button DockPanel.Dock="Right" Classes="secondary" Click="AddMore_Click">
+            <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconPlus}" Width="13" Height="13"/><TextBlock Text="PDF ekle"/></StackPanel>
+          </Button>
+          <TextBlock Classes="section" Text="Seçilen PDF'ler" VerticalAlignment="Center" Margin="0"/>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ContentControl Name="ListHost" Focusable="False"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="Go" DockPanel.Dock="Right" Classes="primary" Content="Birleştir" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock Name="Summary" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Text="Birleştirmek için en az iki PDF ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

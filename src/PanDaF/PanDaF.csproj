@@ -1,12 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
-    <UseWPF>true</UseWPF>
-    <!-- Yalnızca sistem tepsisi simgesi (NotifyIcon) için. -->
-    <UseWindowsForms>true</UseWindowsForms>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- net10.0: macOS ve Linux. net10.0-windows: Windows (yazı tanıma ve Office köprüsü için Windows SDK). -->
+    <TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>PanDaF</RootNamespace>
@@ -14,30 +10,40 @@
     <Product>PanDaF</Product>
     <Company>Sinan İnce</Company>
     <Copyright>Sinan İnce 2026 · GPL-3.0 · KillerPdf.Engine (GPL-3.0) · Nashi (MIT)</Copyright>
-    <Version>1.6.0</Version>
+    <Version>2.0.0</Version>
     <ApplicationIcon>Assets\PanDaF.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
-    <!-- Öğretmenler tek bir .exe indirip çift tıklasın: her şey tek dosyada. -->
-    <PublishSingleFile>true</PublishSingleFile>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
     <SatelliteResourceLanguages>tr</SatelliteResourceLanguages>
-    <InvariantGlobalization>false</InvariantGlobalization>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- WPF ile ad çakışması olmasın: Windows Forms türleri yalnızca açıkça yazılarak kullanılır. -->
-    <Using Remove="System.Windows.Forms" />
-    <Using Remove="System.Drawing" />
-  </ItemGroup>
+  <PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PanDaF.Core\PanDaF.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Assets\PanDaF.png" />
-    <Resource Include="Assets\LogoIstek.png" />
-    <Resource Include="Assets\LogoIB.png" />
+    <PackageReference Include="Avalonia" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.2" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\PanDaF.png" />
+    <AvaloniaResource Include="Assets\LogoIstek.png" />
+    <AvaloniaResource Include="Assets\LogoIB.png" />
+    <AvaloniaResource Include="Assets\PanDaF.ico" />
+  </ItemGroup>
+  <ItemGroup Condition="!$(TargetFramework.Contains('-windows'))">
+    <Compile Remove="Platform\Windows\**" />
   </ItemGroup>
 </Project>

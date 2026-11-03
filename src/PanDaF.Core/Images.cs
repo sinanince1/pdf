@@ -1,119 +1,90 @@
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
+using SkiaSharp;
 
 namespace PanDaF.Core;
 
+/// Resim işleri (SkiaSharp): açma (EXIF yönü ile), PNG/JPEG kodlama, resimden PDF.
 public static class Images
 {
     // A4, nokta (1/72 inç) cinsinden.
     public const double A4Width = 595.276, A4Height = 841.89;
     private const double A4Margin = 24;
 
-    public static byte[] Png(BitmapSource image)
+    public static byte[] Png(SKBitmap image)
     {
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(image));
-        using var memory = new MemoryStream();
-        encoder.Save(memory);
-        return memory.ToArray();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
-    public static byte[] Jpeg(BitmapSource image, int quality = 90)
+    public static byte[] Jpeg(SKBitmap image, int quality = 90)
     {
         // JPEG saydamlık taşımaz; önce beyaz zemine yerleştir.
-        var opaque = HasAlpha(image) ? Flatten(image) : image;
-        var encoder = new JpegBitmapEncoder { QualityLevel = Math.Clamp(quality, 1, 100) };
-        encoder.Frames.Add(BitmapFrame.Create(new FormatConvertedBitmap(opaque, PixelFormats.Bgr24, null, 0)));
-        using var memory = new MemoryStream();
-        encoder.Save(memory);
-        return memory.ToArray();
+        using var opaque = HasAlpha(image) ? Flatten(image) : null;
+        using var data = (opaque ?? image).Encode(SKEncodedImageFormat.Jpeg, Math.Clamp(quality, 1, 100));
+        return data.ToArray();
     }
 
-    public static bool HasAlpha(BitmapSource image) =>
-        image.Format == PixelFormats.Bgra32 || image.Format == PixelFormats.Pbgra32 || image.Format == PixelFormats.Prgba64 ||
-        image.Format == PixelFormats.Rgba64 || image.Format == PixelFormats.Rgba128Float || image.Format == PixelFormats.Prgba128Float;
+    public static bool HasAlpha(SKBitmap image) => image.AlphaType != SKAlphaType.Opaque && !image.Info.IsOpaque;
 
-    // Saydam pikselleri beyaz zeminle birleştirir. Çizim nesnesi kullanmaz; her iş parçacığında çalışır.
-    private static BitmapSource Flatten(BitmapSource image)
+    public static SKBitmap Flatten(SKBitmap image)
     {
-        var source = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
-        int width = source.PixelWidth, height = source.PixelHeight, stride = checked(width * 4);
-        var pixels = new byte[checked(stride * height)];
-        source.CopyPixels(pixels, stride, 0);
-        var output = new byte[checked(width * 3 * height)];
-        for (int i = 0, o = 0; i < pixels.Length; i += 4, o += 3)
-        {
-            var alpha = pixels[i + 3];
-            for (var c = 0; c < 3; c++) output[o + c] = (byte)((pixels[i + c] * alpha + 255 * (255 - alpha) + 127) / 255);
-        }
-        var result = BitmapSource.Create(width, height, image.DpiX > 0 ? image.DpiX : 96, image.DpiY > 0 ? image.DpiY : 96, PixelFormats.Bgr24, null, output, width * 3);
-        result.Freeze();
+        var result = new SKBitmap(new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using var canvas = new SKCanvas(result);
+        canvas.Clear(SKColors.White);
+        canvas.DrawBitmap(image, 0, 0);
         return result;
     }
 
     /// Resmi açar ve telefon fotoğraflarındaki EXIF yönünü uygular.
-    public static BitmapSource Load(string path) => Load(path, out _);
+    public static SKBitmap Load(string path) => Load(path, out _);
 
-    public static BitmapSource Load(string path, out int orientation)
+    public static SKBitmap Load(string path, out int orientation)
     {
         orientation = 1;
-        BitmapFrame frame;
-        try
+        byte[] bytes;
+        try { bytes = File.ReadAllBytes(path); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new UserFacingException($"“{Path.GetFileName(path)}” okunamadı. Başka bir programda açık olabilir.", error); }
+        using var codec = SKCodec.Create(new MemoryStream(bytes));
+        if (codec is null) throw new UserFacingException($"“{Path.GetFileName(path)}” açılamadı. Bu resim biçimi desteklenmiyor olabilir; resmi JPG veya PNG olarak kaydedip tekrar deneyin.");
+        var info = codec.Info;
+        if ((long)info.Width * info.Height > 150_000_000) throw new UserFacingException($"“{Path.GetFileName(path)}” çok büyük (150 megapikselden fazla).");
+        var bitmap = new SKBitmap(new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        var result = codec.GetPixels(bitmap.Info, bitmap.GetPixels());
+        if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-            frame = decoder.Frames[0];
+            bitmap.Dispose();
+            throw new UserFacingException($"“{Path.GetFileName(path)}” çözülemedi ({result}).");
         }
-        catch (Exception error) when (error is NotSupportedException or FileFormatException or ArgumentException or System.Runtime.InteropServices.COMException or OverflowException)
+        orientation = codec.EncodedOrigin switch
         {
-            throw new UserFacingException($"“{Path.GetFileName(path)}” açılamadı. Bu resim biçimi bu bilgisayarda desteklenmiyor olabilir; resmi JPG veya PNG olarak kaydedip tekrar deneyin.", error);
-        }
-        catch (IOException error)
-        {
-            throw new UserFacingException($"“{Path.GetFileName(path)}” okunamadı. Başka bir programda açık olabilir.", error);
-        }
-        if ((long)frame.PixelWidth * frame.PixelHeight > 150_000_000)
-            throw new UserFacingException($"“{Path.GetFileName(path)}” çok büyük (150 megapikselden fazla).");
-        orientation = Orientation(frame);
-        BitmapSource image = frame;
-        if (orientation != 1)
-        {
-            var transform = new TransformGroup();
-            switch (orientation)
-            {
-                case 2: transform.Children.Add(new ScaleTransform(-1, 1)); break;
-                case 3: transform.Children.Add(new RotateTransform(180)); break;
-                case 4: transform.Children.Add(new ScaleTransform(1, -1)); break;
-                case 5: transform.Children.Add(new RotateTransform(90)); transform.Children.Add(new ScaleTransform(-1, 1)); break;
-                case 6: transform.Children.Add(new RotateTransform(90)); break;
-                case 7: transform.Children.Add(new RotateTransform(270)); transform.Children.Add(new ScaleTransform(-1, 1)); break;
-                case 8: transform.Children.Add(new RotateTransform(270)); break;
-            }
-            image = new TransformedBitmap(frame, transform);
-        }
-        image.Freeze();
-        return image;
+            SKEncodedOrigin.TopRight => 2, SKEncodedOrigin.BottomRight => 3, SKEncodedOrigin.BottomLeft => 4,
+            SKEncodedOrigin.LeftTop => 5, SKEncodedOrigin.RightTop => 6, SKEncodedOrigin.RightBottom => 7, SKEncodedOrigin.LeftBottom => 8, _ => 1,
+        };
+        if (orientation == 1) return bitmap;
+        using (bitmap) return Orient(bitmap, orientation);
     }
 
-    private static int Orientation(BitmapFrame frame)
+    private static SKBitmap Orient(SKBitmap source, int orientation)
     {
-        try
+        var swap = orientation is >= 5 and <= 8;
+        var result = new SKBitmap(new SKImageInfo(swap ? source.Height : source.Width, swap ? source.Width : source.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(result);
+        canvas.Translate(result.Width / 2f, result.Height / 2f);
+        switch (orientation)
         {
-            if (frame.Metadata is not BitmapMetadata metadata) return 1;
-            foreach (var query in new[] { "/app1/ifd/{ushort=274}", "/ifd/{ushort=274}" })
-            {
-                if (metadata.ContainsQuery(query) && metadata.GetQuery(query) is { } value)
-                {
-                    var number = Convert.ToInt32(value);
-                    return number is >= 1 and <= 8 ? number : 1;
-                }
-            }
+            case 2: canvas.Scale(-1, 1); break;
+            case 3: canvas.RotateDegrees(180); break;
+            case 4: canvas.Scale(1, -1); break;
+            case 5: canvas.RotateDegrees(90); canvas.Scale(-1, 1); break;
+            case 6: canvas.RotateDegrees(90); break;
+            case 7: canvas.RotateDegrees(270); canvas.Scale(-1, 1); break;
+            case 8: canvas.RotateDegrees(270); break;
         }
-        catch (Exception error) when (error is NotSupportedException or InvalidOperationException or ArgumentException or InvalidCastException or FormatException or OverflowException or System.Runtime.InteropServices.COMException) { }
-        return 1;
+        canvas.Translate(-source.Width / 2f, -source.Height / 2f);
+        canvas.DrawBitmap(source, 0, 0);
+        return result;
     }
 
     /// Resimleri PDF'ye çevirir. combine=true ise hepsi tek PDF'de birleşir (adı combinedName),
@@ -152,7 +123,7 @@ public static class Images
 
     private static void AddImagePage(PdfDocument pdf, string file, bool fitA4, List<IDisposable> keep)
     {
-        var bitmap = Load(file, out var orientation);
+        using var bitmap = Load(file, out var orientation);
         var ext = FileKinds.Extension(file);
         byte[] bytes;
         // Yönü düzgün JPEG dosyaları olduğu gibi gömülür: kalite kaybı yok, dosya küçük kalır.
@@ -171,7 +142,7 @@ public static class Images
         }
         keep.Add(image);
 
-        double pixelWidth = bitmap.PixelWidth, pixelHeight = bitmap.PixelHeight;
+        double pixelWidth = bitmap.Width, pixelHeight = bitmap.Height;
         var page = pdf.AddPage();
         double pageWidth, pageHeight, x, y, width, height;
         if (fitA4)
@@ -184,8 +155,8 @@ public static class Images
         }
         else
         {
-            var dpi = bitmap.DpiX is >= 30 and <= 1200 ? bitmap.DpiX : 96;
-            var factor = Math.Min(72 / dpi, 14400 / Math.Max(pixelWidth, pixelHeight));
+            // Çözünürlük bilgisi güvenilir olmadığından 96 dpi varsayılır; en büyük sayfa kenarı 200 inç.
+            var factor = Math.Min(72 / 96.0, 14400 / Math.Max(pixelWidth, pixelHeight));
             pageWidth = width = pixelWidth * factor; pageHeight = height = pixelHeight * factor; x = y = 0;
         }
         page.Width = XUnit.FromPoint(pageWidth); page.Height = XUnit.FromPoint(pageHeight);

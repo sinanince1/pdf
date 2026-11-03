@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.FromPdfView">
+  <Grid Margin="40,28,40,24" MaxWidth="980" RowDefinitions="Auto,*,Auto">
+    <StackPanel>
+      <TextBlock Classes="title" Text="PDF'den çevir"/>
+      <TextBlock Classes="subtitle" Text="PDF'leri ekleyin ve neye dönüştürmek istediğinizi seçin."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0" ColumnDefinitions="*,330">
+      <Grid>
+        <ContentControl Name="DropHost" Focusable="False"/>
+        <DockPanel Name="ListPanel" IsVisible="False">
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Classes="secondary" Click="AddMore_Click">
+              <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconPlus}" Width="13" Height="13"/><TextBlock Text="PDF ekle"/></StackPanel>
+            </Button>
+            <TextBlock Classes="section" Text="Seçilen PDF'ler" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ContentControl Name="ListHost" Focusable="False"/>
+          </ScrollViewer>
+        </DockPanel>
+      </Grid>
+
+      <ScrollViewer Grid.Column="1" Margin="20,0,0,0" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Classes="section" Text="Neye dönüştürülsün?"/>
+          <Border Name="ToWordCard" Classes="option">
+            <RadioButton Name="ToWord" GroupName="Target" IsChecked="True" IsCheckedChanged="Target_Changed">
+              <StackPanel>
+                <TextBlock Text="Word belgesi (.docx)" FontWeight="SemiBold"/>
+                <TextBlock Text="Metni düzenleyebilirsiniz. Taranmış sayfalarda yazı otomatik tanınır." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="ToExcelCard" Classes="option">
+            <RadioButton Name="ToExcel" GroupName="Target" IsCheckedChanged="Target_Changed">
+              <StackPanel>
+                <TextBlock Text="Excel tablosu (.xlsx)" FontWeight="SemiBold"/>
+                <TextBlock Text="Sayfadaki tablo düzenini hücrelere aktarır. Not listeleri, çizelgeler için." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="ToJpgCard" Classes="option">
+            <RadioButton Name="ToJpg" GroupName="Target" IsCheckedChanged="Target_Changed">
+              <StackPanel>
+                <TextBlock Text="Resim (JPG)" FontWeight="SemiBold"/>
+                <TextBlock Text="Her sayfa bir resim olur. Sunuya, panoya veya mesaja eklemek için." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="ToPngCard" Classes="option">
+            <RadioButton Name="ToPng" GroupName="Target" IsCheckedChanged="Target_Changed">
+              <StackPanel>
+                <TextBlock Text="Resim (PNG)" FontWeight="SemiBold"/>
+                <TextBlock Text="JPG'den daha net; dosyalar daha büyük olur." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <Border Name="ToTextCard" Classes="option">
+            <RadioButton Name="ToText" GroupName="Target" IsCheckedChanged="Target_Changed">
+              <StackPanel>
+                <TextBlock Text="Düz metin (.txt)" FontWeight="SemiBold"/>
+                <TextBlock Text="Yalnızca yazılar. Taranmış sayfalardaki yazı da okunmaya çalışılır." Classes="small"/>
+              </StackPanel>
+            </RadioButton>
+          </Border>
+          <StackPanel Name="QualityPanel" IsVisible="False" Margin="0,4,0,0">
+            <TextBlock Text="Resim kalitesi" Classes="small" Margin="0,0,0,4"/>
+            <ComboBox Name="Quality" SelectedIndex="0" HorizontalAlignment="Stretch">
+              <ComboBoxItem Content="Normal (150 DPI)"/>
+              <ComboBoxItem Content="Yüksek (300 DPI, yazdırma için)"/>
+            </ComboBox>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="Go" DockPanel.Dock="Right" Classes="primary" Content="Dönüştür" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock Name="Summary" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Text="Dönüştürmek için PDF ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

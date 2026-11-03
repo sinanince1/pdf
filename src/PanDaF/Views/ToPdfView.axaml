@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.ToPdfView">
+  <Grid Margin="40,28,40,24" MaxWidth="920" RowDefinitions="Auto,*,Auto">
+    <StackPanel>
+      <TextBlock Classes="title" Text="PDF'ye çevir"/>
+      <TextBlock Classes="subtitle" Text="Word, PowerPoint ve Excel dosyalarını veya fotoğrafları ekleyin. Her belge kendi adıyla PDF olarak kaydedilir."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,20,0,0">
+      <ContentControl Name="DropHost" Focusable="False"/>
+      <Grid Name="ListPanel" IsVisible="False" ColumnDefinitions="*,Auto">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Classes="secondary" Click="AddMore_Click">
+              <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconPlus}" Width="13" Height="13"/><TextBlock Text="Dosya ekle"/></StackPanel>
+            </Button>
+            <TextBlock Classes="section" Text="Seçilen dosyalar" VerticalAlignment="Center" Margin="0"/>
+          </DockPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ContentControl Name="ListHost" Focusable="False"/>
+          </ScrollViewer>
+        </DockPanel>
+
+        <!-- Resim seçenekleri -->
+        <Border Name="ImageOptions" Grid.Column="1" Width="290" Margin="20,48,0,0" VerticalAlignment="Top" Classes="card" IsVisible="False">
+          <StackPanel>
+            <TextBlock Classes="section" Text="Resimler için"/>
+            <CheckBox Name="Combine" IsChecked="True" IsCheckedChanged="Options_Changed">
+              <TextBlock Text="Hepsini tek PDF'de birleştir" TextWrapping="Wrap"/>
+            </CheckBox>
+            <StackPanel Name="NamePanel" Margin="26,0,0,12">
+              <TextBlock Text="PDF'nin adı" Classes="small" Margin="0,0,0,4"/>
+              <TextBox Name="CombinedName" Text="Resimler"/>
+            </StackPanel>
+            <CheckBox Name="FitA4" IsChecked="True">
+              <TextBlock Text="A4 sayfaya yerleştir (yazdırmaya uygun)" TextWrapping="Wrap"/>
+            </CheckBox>
+            <TextBlock Text="Sıra önemliyse okları kullanın: listedeki ilk resim ilk sayfa olur." Classes="small"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" Padding="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button Name="Go" DockPanel.Dock="Right" Classes="primary" Content="PDF'ye çevir" IsEnabled="False" Click="Go_Click"/>
+        <TextBlock Name="Summary" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Text="Çevirmek için dosya ekleyin."/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PanDaF.MainWindow"
+        Title="PanDaF" Width="1060" Height="760" MinWidth="820" MinHeight="600"
+        WindowStartupLocation="CenterScreen" Icon="avares://PanDaF/Assets/PanDaF.ico">
+  <Grid RowDefinitions="Auto,*" Background="{StaticResource Bg}">
+    <!-- Üst çubuk -->
+    <Border Grid.Row="0" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="20,10">
+      <DockPanel LastChildFill="True">
+        <Button Name="SettingsButton" DockPanel.Dock="Right" Classes="ghost" Click="Settings_Click" ToolTip.Tip="Shift paneli, otomatik başlatma, imza ve uygulama hakkında">
+          <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconSettings}"/><TextBlock Text="Ayarlar"/></StackPanel>
+        </Button>
+        <Button Name="BackButton" DockPanel.Dock="Left" Classes="ghost" Click="Back_Click" IsVisible="False" Margin="0,0,12,0" ToolTip.Tip="Ana sayfaya dön (Esc)">
+          <StackPanel Orientation="Horizontal" Spacing="8"><PathIcon Data="{StaticResource IconBack}"/><TextBlock Text="Ana sayfa"/></StackPanel>
+        </Button>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+          <Image Source="avares://PanDaF/Assets/PanDaF.png" Width="32" Height="32"/>
+          <TextBlock Text="PanDaF" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          <TextBlock Name="PageTitle" FontSize="17" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <ContentControl Name="Host" Grid.Row="1"/>
+
+    <!-- İşlem sürüyor -->
+    <Grid Name="BusyOverlay" Grid.RowSpan="2" Background="#99202020" IsVisible="False">
+      <Border Classes="card" Width="480" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel>
+          <TextBlock Name="BusyTitle" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+          <TextBlock Name="BusyLabel" Classes="muted" TextWrapping="Wrap" Margin="0,8,0,16" Text="Hazırlanıyor…"/>
+          <ProgressBar Name="BusyBar" Minimum="0" Maximum="1" IsIndeterminate="True"/>
+          <Button Name="CancelButton" Content="İptal" Classes="secondary" HorizontalAlignment="Right" Margin="0,20,0,0" Click="Cancel_Click"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Sonuç -->
+    <Grid Name="ResultOverlay" Grid.RowSpan="2" Background="#99202020" IsVisible="False">
+      <Border Classes="card" Width="540" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,12" Spacing="14">
+            <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource SuccessSoft}">
+              <PathIcon Data="{StaticResource IconCheck}" Width="18" Height="18" Foreground="{StaticResource Success}"/>
+            </Border>
+            <TextBlock Text="Hazır!" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock Name="ResultMessage" TextWrapping="Wrap"/>
+          <TextBlock Name="ResultPath" Classes="small" Margin="0,8,0,0"/>
+          <WrapPanel HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button Name="ResultOpenFolder" Content="Klasörde göster" Classes="secondary" Margin="0,0,10,0" Click="ResultOpenFolder_Click"/>
+            <Button Name="ResultOpen" Content="Aç" Classes="secondary" Margin="0,0,10,0" Click="ResultOpen_Click"/>
+            <Button Name="ResultOk" Content="Tamam" Classes="primary" Padding="24,9" Click="ResultOk_Click"/>
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Mesaj kutusu (Bilgi / Hata / Soru) -->
+    <Grid Name="MessageOverlay" Grid.RowSpan="2" Background="#99202020" IsVisible="False">
+      <Border Classes="card" Width="520" Padding="26" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel>
+          <TextBlock Name="MessageTitle" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10"/>
+          <TextBlock Name="MessageText" TextWrapping="Wrap"/>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0" Spacing="10">
+            <Button Name="MessageNo" Content="Hayır" Classes="secondary" Click="MessageNo_Click"/>
+            <Button Name="MessageYes" Content="Tamam" Classes="primary" Padding="22,9" Click="MessageYes_Click"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

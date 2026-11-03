@@ -43,23 +43,44 @@ public sealed class LibreOffice(string root)
     {
         get
         {
-            var safe = !Directory.Exists(Managed) || DisablePythonLoader(Managed);
-            string[] managed = [Path.Combine(Managed, "program", "soffice.com"), Path.Combine(Managed, "program", "soffice.exe")];
-            var installed = new List<string>();
-            foreach (var programFiles in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
+            var candidates = new List<string>();
+            if (OperatingSystem.IsWindows())
             {
-                if (string.IsNullOrEmpty(programFiles)) continue;
-                installed.Add(Path.Combine(programFiles, "LibreOffice", "program", "soffice.com"));
-                installed.Add(Path.Combine(programFiles, "LibreOffice", "program", "soffice.exe"));
+                var safe = !Directory.Exists(Managed) || DisablePythonLoader(Managed);
+                string[] managed = [Path.Combine(Managed, "program", "soffice.com"), Path.Combine(Managed, "program", "soffice.exe")];
+                var installed = new List<string>();
+                foreach (var programFiles in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
+                {
+                    if (string.IsNullOrEmpty(programFiles)) continue;
+                    installed.Add(Path.Combine(programFiles, "LibreOffice", "program", "soffice.com"));
+                    installed.Add(Path.Combine(programFiles, "LibreOffice", "program", "soffice.exe"));
+                }
+                candidates.AddRange(safe ? [.. managed, .. installed] : [.. installed, .. managed]);
             }
-            string[] candidates = safe ? [.. managed, .. installed] : [.. installed, .. managed];
+            else if (OperatingSystem.IsMacOS())
+            {
+                candidates.Add("/Applications/LibreOffice.app/Contents/MacOS/soffice");
+                candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Applications", "LibreOffice.app", "Contents", "MacOS", "soffice"));
+            }
+            else
+            {
+                candidates.AddRange(["/usr/bin/soffice", "/usr/bin/libreoffice", "/usr/lib/libreoffice/program/soffice", "/snap/bin/libreoffice", "/opt/libreoffice/program/soffice"]);
+                foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries))
+                    candidates.Add(Path.Combine(dir, "soffice"));
+            }
             return candidates.FirstOrDefault(ToolInstallation.UsableFile);
         }
     }
 
+    /// Kullanıcıya gösterilecek kurulum yönergesi (Windows dışında otomatik indirme yoktur).
+    public static string InstallHint => OperatingSystem.IsMacOS()
+        ? "Word, PowerPoint ve Excel dönüşümleri için ücretsiz LibreOffice gerekli. libreoffice.org adresinden indirip Uygulamalar klasörüne sürükleyin, sonra tekrar deneyin."
+        : "Word, PowerPoint ve Excel dönüşümleri için ücretsiz LibreOffice gerekli. Paket yöneticinizden veya libreoffice.org adresinden kurun, sonra tekrar deneyin.";
+
     public async Task InstallAsync(IProgress<OperationProgress>? progress, CancellationToken token)
     {
         if (Executable is not null) return;
+        if (!OperatingSystem.IsWindows()) throw new UserFacingException(InstallHint);
         Directory.CreateDirectory(root);
         var stage = Path.Combine(root, ".office-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stage);

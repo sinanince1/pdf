@@ -1,8 +1,7 @@
 // Adapted from Nashi (https://github.com/orkunisitmak/nashi-app),
 // Copyright (c) 2026 Orkun Işıtmak and Nashi contributors, MIT License.
 using System.Runtime.InteropServices;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using SkiaSharp;
 
 namespace PanDaF.Core;
 
@@ -52,8 +51,8 @@ public sealed class PdfRasterDocument : IDisposable
 
     public static PdfRasterDocument Open(string path, string password = "") => new(path, password);
 
-    /// Sayfayı (0'dan başlayan index) verilen DPI'da beyaz zeminle çizer.
-    public BitmapSource RenderBitmap(int index, int dpi, CancellationToken token = default)
+    /// Sayfayı (0'dan başlayan index) verilen DPI'da beyaz zeminle çizer. Çağıran bitmap'i Dispose eder.
+    public SKBitmap RenderBitmap(int index, int dpi, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
         if (dpi < 20 || dpi > 600) throw new ArgumentOutOfRangeException(nameof(dpi));
@@ -70,28 +69,29 @@ public sealed class PdfRasterDocument : IDisposable
                 if (!double.IsFinite(w) || !double.IsFinite(h) || w < 1 || h < 1 || w * h > 100_000_000)
                     throw new UserFacingException("Sayfa çok büyük. Daha düşük bir kalite seçin.");
                 var width = checked((int)Math.Ceiling(w)); var height = checked((int)Math.Ceiling(h));
-                var stride = checked(width * 4); var pixels = new byte[checked(stride * height)];
-                var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned); nint bitmap = 0;
+                var stride = checked(width * 4);
+                // PDFium doğrudan SkiaSharp bitmap'inin belleğine çizer (BGRA, 4 = FPDFBitmap_BGRA).
+                var image = new SKBitmap(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul));
+                nint bitmap = 0;
                 try
                 {
-                    bitmap = Native.FPDFBitmap_CreateEx(width, height, 4, pinned.AddrOfPinnedObject(), stride);
+                    bitmap = Native.FPDFBitmap_CreateEx(width, height, 4, image.GetPixels(), stride);
                     if (bitmap == 0) throw new UserFacingException("Sayfa görüntüsü için bellek ayrılamadı.");
                     if (Native.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, 0xffffffff) == 0) throw new UserFacingException("Sayfa zemini hazırlanamadı.");
                     // 0x01 = FPDF_ANNOT: notlar ve form görünümleri de çizilsin.
                     Native.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, 1);
                     form?.Draw(bitmap, width, height);
                     token.ThrowIfCancellationRequested();
-                    var image = BitmapSource.Create(width, height, dpi, dpi, PixelFormats.Bgra32, null, pixels, stride);
-                    image.Freeze();
                     return image;
                 }
-                finally { if (bitmap != 0) Native.FPDFBitmap_Destroy(bitmap); pinned.Free(); }
+                catch { image.Dispose(); throw; }
+                finally { if (bitmap != 0) Native.FPDFBitmap_Destroy(bitmap); }
             }
             finally { form?.ClosePage(); Native.FPDF_ClosePage(page); }
         }
     }
 
-    public byte[] RenderPng(int index, int dpi, CancellationToken token = default) => Images.Png(RenderBitmap(index, dpi, token));
+    public byte[] RenderPng(int index, int dpi, CancellationToken token = default) { using var bitmap = RenderBitmap(index, dpi, token); return Images.Png(bitmap); }
 
     public void Dispose()
     {

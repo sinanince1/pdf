@@ -1,18 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
-    <UseWPF>true</UseWPF>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>PanDaF.Core</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Platforma özgü çağrılar (Windows kayıt defteri, msi.dll) çalışma anında korunur. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
-    <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8044" />
     <PackageReference Include="KillerPdf.Engine" Version="1.9.0" />
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.0" />
+    <!-- PDFium: her platform için aynı sürüm, yerel kütüphane adı "pdfium". -->
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8044" />
+    <PackageReference Include="bblanchon.PDFium.macOS" Version="155.0.8044" />
+    <PackageReference Include="bblanchon.PDFium.Linux" Version="155.0.8044" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PanDaF.Tests" />

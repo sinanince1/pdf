@@ -1,11 +1,7 @@
 // PDF → metin/görüntü kısımları Nashi'den uyarlanmıştır (https://github.com/orkunisitmak/nashi-app),
 // Copyright (c) 2026 Orkun Işıtmak and Nashi contributors, MIT License.
 using System.Text;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using global::Windows.Graphics.Imaging;
-using global::Windows.Media.Ocr;
-using global::Windows.Storage.Streams;
+using SkiaSharp;
 
 namespace PanDaF.Core;
 
@@ -97,7 +93,7 @@ public sealed class Converter(string toolsRoot)
                         {
                             token.ThrowIfCancellationRequested();
                             progress?.Report(new((i + (double)page / pdf.PageCount) / inputs.Count, $"Sayfa {page + 1}/{pdf.PageCount} resme çevriliyor{label}"));
-                            var bitmap = pdf.RenderBitmap(page, dpi, token);
+                            using var bitmap = pdf.RenderBitmap(page, dpi, token);
                             var bytes = ext == "jpg" ? Images.Jpeg(bitmap, 90) : Images.Png(bitmap);
                             var name = pdf.PageCount == 1 ? $"{stem}.{ext}" : $"{stem} - Sayfa {(page + 1).ToString().PadLeft(digits, '0')}.{ext}";
                             last = SafePaths.Unique(folder, name);
@@ -243,7 +239,8 @@ public sealed class Converter(string toolsRoot)
             if (needed.Length == 0) return html;
             using var pdf = PdfRasterDocument.Open(input);
             var pages = needed.Distinct().ToDictionary(n => n, n => pdf.RenderBitmap(n - 1, dpi, token));
-            return LibreOffice.PdfHtml(input, "", (n, area) => pages.TryGetValue(n, out var page) ? Crop(page, area, dpi) : null, out _);
+            try { return LibreOffice.PdfHtml(input, "", (n, area) => pages.TryGetValue(n, out var page) ? Crop(page, area, dpi) : null, out _); }
+            finally { foreach (var page in pages.Values) page.Dispose(); }
         }
         catch (Exception error) when (error is not (UserFacingException or OperationCanceledException))
         {
@@ -251,13 +248,15 @@ public sealed class Converter(string toolsRoot)
         }
     }
 
-    private static byte[]? Crop(BitmapSource page, LibreOffice.PdfArea? area, int dpi)
+    private static byte[]? Crop(SKBitmap page, LibreOffice.PdfArea? area, int dpi)
     {
         if (area is not { } a) return Images.Png(page);
         var scale = dpi / 72d;
-        var x = Math.Clamp((int)Math.Floor(a.Left * scale), 0, page.PixelWidth); var y = Math.Clamp((int)Math.Floor(a.Top * scale), 0, page.PixelHeight);
-        var width = Math.Min(page.PixelWidth - x, (int)Math.Ceiling(a.Width * scale)); var height = Math.Min(page.PixelHeight - y, (int)Math.Ceiling(a.Height * scale));
-        return width < 1 || height < 1 ? null : Images.Png(new CroppedBitmap(page, new System.Windows.Int32Rect(x, y, width, height)));
+        var x = Math.Clamp((int)Math.Floor(a.Left * scale), 0, page.Width); var y = Math.Clamp((int)Math.Floor(a.Top * scale), 0, page.Height);
+        var width = Math.Min(page.Width - x, (int)Math.Ceiling(a.Width * scale)); var height = Math.Min(page.Height - y, (int)Math.Ceiling(a.Height * scale));
+        if (width < 1 || height < 1) return null;
+        using var part = new SKBitmap(width, height, page.ColorType, page.AlphaType);
+        return page.ExtractSubset(part, new SKRectI(x, y, x + width, y + height)) ? Images.Png(part) : null;
     }
 
     /// PDF'deki metni çıkarır; metni olmayan (taranmış) sayfalarda Windows'un yazı tanıma özelliğini kullanır.
@@ -291,23 +290,18 @@ public sealed class Converter(string toolsRoot)
         }
     }
 
-    private static OcrEngine? Engine() =>
-        OcrEngine.TryCreateFromUserProfileLanguages()
-        ?? OcrEngine.TryCreateFromLanguage(new global::Windows.Globalization.Language("tr-TR"))
-        ?? OcrEngine.TryCreateFromLanguage(new global::Windows.Globalization.Language("en-US"));
+    /// Taranmış sayfaları okuyan yazı tanıma. Windows uygulaması Windows OCR'ı bağlar; başka platformda yoktur.
+    public static Func<SKBitmap, CancellationToken, Task<string>>? OcrProvider { get; set; }
+    public static bool OcrAvailable => OcrProvider is not null;
 
-    private static async Task<string> Recognize(BitmapSource image, CancellationToken token)
+    private static async Task<string> Recognize(SKBitmap image, CancellationToken token)
     {
-        var engine = Engine() ?? throw new UserFacingException("Taranmış sayfalardaki yazıyı okumak için Windows Ayarlar > Dil bölümünden bir dil paketi yükleyin.");
-        var factor = Math.Min(1, (double)OcrEngine.MaxImageDimension / Math.Max(image.PixelWidth, image.PixelHeight));
-        if (factor < 1) image = new TransformedBitmap(image, new ScaleTransform(factor, factor));
-        using var memory = new InMemoryRandomAccessStream();
-        using (var writer = new DataWriter(memory.GetOutputStreamAt(0))) { writer.WriteBytes(Images.Png(image)); await writer.StoreAsync(); }
-        memory.Seek(0);
-        var decoder = await global::Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(memory);
-        using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-        var result = await engine.RecognizeAsync(bitmap);
-        token.ThrowIfCancellationRequested();
-        return string.Join("\n", result.Lines.Select(l => l.Text));
+        using (image)
+        {
+            var provider = OcrProvider ?? throw new UserFacingException(OperatingSystem.IsWindows()
+                ? "Taranmış sayfalardaki yazıyı okumak için Windows Ayarlar > Dil bölümünden bir dil paketi yükleyin."
+                : "Taranmış (fotoğraf) PDF'lerde yazı tanıma bu platformda yok. Metinli bir PDF kullanın veya önce bir OCR aracıyla metin katmanı ekleyin.");
+            return await provider(image, token);
+        }
     }
 }

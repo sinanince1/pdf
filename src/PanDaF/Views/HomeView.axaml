@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PanDaF.Views.HomeView">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,32" MaxWidth="1040">
+      <TextBlock Classes="title" Text="Ne yapmak istiyorsunuz?"/>
+      <TextBlock Classes="subtitle" Text="Bir araç seçin ya da dosyalarınızı doğrudan bu pencereye sürükleyin."/>
+
+      <UniformGrid Name="Tiles" Columns="3" Margin="-8,22,-8,0">
+        <Button Name="MergeTile" Classes="tile" Click="Merge_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconMerge}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="PDF birleştir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="Birden fazla PDF'yi istediğiniz sırayla tek dosyada toplayın." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Click="Split_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconSplit}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="PDF böl" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="Bir PDF'yi parçalara ayırın veya yalnızca istediğiniz sayfaları alın." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Click="Organize_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconOrganize}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="Sayfaları düzenle" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="Sayfaları silin, sürükleyerek sıralayın veya döndürün." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Click="ToPdf_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconPdf}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="PDF'ye çevir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="Word, PowerPoint, Excel dosyalarını veya fotoğrafları PDF yapın." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Click="Edit_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconEdit}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="PDF'yi düzenle" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="Var olan yazıyı değiştirin, üzerine yazın, bir alanı kapatın, vurgulayın, çizin, resim ve okul logosu ekleyin." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Click="FromPdf_Click">
+          <StackPanel>
+            <Border Width="52" Height="52" CornerRadius="14" Background="{StaticResource PrimarySoft}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconWord}" Width="26" Height="26" Foreground="{StaticResource Primary}"/>
+            </Border>
+            <TextBlock Text="PDF'den çevir" FontSize="19" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Text="PDF'yi Word belgesine, Excel tablosuna, resme (JPG/PNG) veya metne dönüştürün." Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Button>
+      </UniformGrid>
+
+      <Border Margin="0,26,0,0" Padding="16,12" CornerRadius="12" Background="{StaticResource SuccessSoft}">
+        <DockPanel>
+          <PathIcon DockPanel.Dock="Left" Data="{StaticResource IconLock}" Width="18" Height="18" Foreground="{StaticResource Success}" Margin="0,0,12,0" VerticalAlignment="Top"/>
+          <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Ink}" Text="Dosyalarınız internete yüklenmez, her şey bu bilgisayarda yapılır. Asıl dosyalarınız hiç değiştirilmez; sonuçlar yeni bir dosya olarak kaydedilir."/>
+        </DockPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
