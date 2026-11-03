@@ -175,7 +175,7 @@ jobs:
           VERSION=$(grep -o '<Version>[^<]*' src/PanDaF/PanDaF.csproj | head -1 | sed 's/<Version>//')
           # Self-contained publish
           for RID in osx-arm64 osx-x64; do
-            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
+            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -p:DebugType=none -o build/$RID
           done
           # Simge: PNG → icns
           mkdir -p build/PanDaF.iconset
