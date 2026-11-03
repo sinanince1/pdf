@@ -193,10 +193,9 @@ jobs:
             sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
             echo -n 'APPL????' > "$APP/Contents/PkgInfo"
             chmod +x "$APP/Contents/MacOS/PanDaF"
-            # Tüm native kütüphaneleri ve DLL'leri imzala, sonra ana paketi imzala.
-            find "$APP/Contents/MacOS" \( -name '*.dylib' -o -name '*.dll' \) -exec codesign --force --sign - {} \;
-            codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP/Contents/MacOS/PanDaF"
-            codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP"
+            # Bundle içindeki tüm dosyaları imzala, sonra ana paketi imzala.
+            find "$APP/Contents/MacOS" -type f -exec codesign --force --sign - {} \; 2>/dev/null || true
+            codesign --force --sign - --deep --entitlements packaging/macos/entitlements.plist "$APP"
             cp LICENSE "build/app-$RID/LICENSE.txt"; cp THIRD-PARTY-NOTICES.txt "build/app-$RID/"; cp -R licenses "build/app-$RID/licenses"
             NAME=$([ "$RID" = osx-arm64 ] && echo "PanDaF-macOS-AppleSilicon.zip" || echo "PanDaF-macOS-Intel.zip")
             ditto -c -k --keepParent --sequesterRsrc "build/app-$RID" "dist/$NAME"
