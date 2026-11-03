@@ -151,7 +151,26 @@ jobs:
           dotnet run --project tests/PanDaF.Tests -c Release 2>&1 | tee "$RUNNER_TEMP/motor-testleri.txt"
           echo "::notice title=Motor testleri (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$RUNNER_TEMP/motor-testleri.txt")"
 
-      - name: Derle ve .app paketi oluştur (Apple Silicon ve Intel)
+      - name: Derle (Apple Silicon ve Intel)
+        run: |
+          set -e
+          for RID in osx-arm64 osx-x64; do
+            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
+          done
+
+      - name: Arayüz duman testi (macOS penceresi)
+        run: |
+          set +e
+          SMOKE="$HOME/smoke"
+          build/osx-arm64/PanDaF --smoke "$SMOKE"
+          CODE=$?
+          mkdir -p "$RUNNER_TEMP/smoke"; cp -R "$SMOKE"/. "$RUNNER_TEMP/smoke/" 2>/dev/null
+          [ -f "$SMOKE/rapor.txt" ] && cat "$SMOKE/rapor.txt" && echo "::notice title=Arayuz testi (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$SMOKE/rapor.txt")"
+          [ -f "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt"
+          [ -f "$HOME/.local/share/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/.local/share/PanDaF/hata-gunlugu.txt"
+          exit $CODE
+
+      - name: .app paketi oluştur ve imzala
         run: |
           set -e
           VERSION=$(grep -o '<Version>[^<]*' src/PanDaF/PanDaF.csproj | head -1 | sed 's/<Version>//')
@@ -164,7 +183,6 @@ jobs:
           iconutil -c icns build/PanDaF.iconset -o build/PanDaF.icns
           mkdir -p dist
           for RID in osx-arm64 osx-x64; do
-            dotnet publish src/PanDaF/PanDaF.csproj -c Release -f net10.0 -r $RID --self-contained -p:PublishSingleFile=false -o build/$RID
             APP=build/app-$RID/PanDaF.app
             mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
             cp -R build/$RID/. "$APP/Contents/MacOS/"
@@ -172,25 +190,15 @@ jobs:
             sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
             echo -n 'APPL????' > "$APP/Contents/PkgInfo"
             chmod +x "$APP/Contents/MacOS/PanDaF"
-            # Geliştirici sertifikası yok: "ad-hoc" imza. İlk açılışta sağ tık → Aç gerekir.
-            codesign --force --deep --sign - "$APP"
+            # Önce dylib'leri tek tek imzala, sonra ana paketi imzala.
+            find "$APP/Contents/MacOS" -name '*.dylib' -exec codesign --force --sign - {} \;
+            codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP/Contents/MacOS/PanDaF"
+            codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP"
             cp LICENSE "build/app-$RID/LICENSE.txt"; cp THIRD-PARTY-NOTICES.txt "build/app-$RID/"; cp -R licenses "build/app-$RID/licenses"
             NAME=$([ "$RID" = osx-arm64 ] && echo "PanDaF-macOS-AppleSilicon.zip" || echo "PanDaF-macOS-Intel.zip")
             ditto -c -k --keepParent --sequesterRsrc "build/app-$RID" "dist/$NAME"
           done
           ls -la dist
-
-      - name: Arayüz duman testi (macOS penceresi)
-        run: |
-          set +e
-          SMOKE="$HOME/smoke"
-          build/app-osx-arm64/PanDaF.app/Contents/MacOS/PanDaF --smoke "$SMOKE"
-          CODE=$?
-          mkdir -p "$RUNNER_TEMP/smoke"; cp -R "$SMOKE"/. "$RUNNER_TEMP/smoke/" 2>/dev/null
-          [ -f "$SMOKE/rapor.txt" ] && cat "$SMOKE/rapor.txt" && echo "::notice title=Arayuz testi (macOS)::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' "$SMOKE/rapor.txt")"
-          [ -f "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/Library/Application Support/PanDaF/hata-gunlugu.txt"
-          [ -f "$HOME/.local/share/PanDaF/hata-gunlugu.txt" ] && cat "$HOME/.local/share/PanDaF/hata-gunlugu.txt"
-          exit $CODE
 
       - name: Çıktıları topla
         if: always()
