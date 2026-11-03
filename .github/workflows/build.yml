@@ -193,8 +193,8 @@ jobs:
             sed "s/__VERSION__/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
             echo -n 'APPL????' > "$APP/Contents/PkgInfo"
             chmod +x "$APP/Contents/MacOS/PanDaF"
-            # Önce dylib'leri tek tek imzala, sonra ana paketi imzala.
-            find "$APP/Contents/MacOS" -name '*.dylib' -exec codesign --force --sign - {} \;
+            # Tüm native kütüphaneleri ve DLL'leri imzala, sonra ana paketi imzala.
+            find "$APP/Contents/MacOS" \( -name '*.dylib' -o -name '*.dll' \) -exec codesign --force --sign - {} \;
             codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP/Contents/MacOS/PanDaF"
             codesign --force --sign - --entitlements packaging/macos/entitlements.plist "$APP"
             cp LICENSE "build/app-$RID/LICENSE.txt"; cp THIRD-PARTY-NOTICES.txt "build/app-$RID/"; cp -R licenses "build/app-$RID/licenses"
