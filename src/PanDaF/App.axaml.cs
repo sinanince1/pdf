@@ -59,7 +59,7 @@ public partial class App : Application
         // Dosya "Birlikte aç" ile veya Dock simgesine bırakılarak açıldıysa (macOS).
         if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activatable)
             activatable.Activated += (_, e) => { if (e is FileActivatedEventArgs opened) Dispatcher.UIThread.Post(() => OpenPaths(opened.Files.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Cast<string>().ToArray())); };
-        if (!background || !OperatingSystem.IsWindows()) window.Show();
+        if (!background || tray is null) window.Show();
         if (files.Length > 0) window.OpenFiles(files);
         base.OnFrameworkInitializationCompleted();
     }
