@@ -110,8 +110,32 @@ public static class PdfAnnotator
         }
     }
 
-    private static XFont FontOf(string family, double size, bool bold, bool italic) =>
-        new(string.IsNullOrWhiteSpace(family) ? "Arial" : family, Math.Max(1, size), (bold, italic) switch { (true, true) => XFontStyleEx.BoldItalic, (true, false) => XFontStyleEx.Bold, (false, true) => XFontStyleEx.Italic, _ => XFontStyleEx.Regular });
+    private static XFont FontOf(string family, double size, bool bold, bool italic)
+    {
+        var style = (bold, italic) switch { (true, true) => XFontStyleEx.BoldItalic, (true, false) => XFontStyleEx.Bold, (false, true) => XFontStyleEx.Italic, _ => XFontStyleEx.Regular };
+        if (!string.IsNullOrWhiteSpace(family) && Usable(family, style))
+            return new XFont(family, Math.Max(1, size), style);
+        return new XFont("Arial", Math.Max(1, size), style);
+    }
+
+    private static readonly Dictionary<(string, XFontStyleEx), bool> usable = [];
+    /// Aile bu bilgisayarda PDF'ye yazılabilir mi? Bazı sistem yazı tiplerini (ör. macOS'taki eski biçimli dosyaları)
+    /// PDFsharp okuyamaz; onlar Arial'a düşer ve yazı tipi listesinde gösterilmez.
+    public static bool Usable(string family, bool bold = false, bool italic = false) =>
+        Usable(family, (bold, italic) switch { (true, true) => XFontStyleEx.BoldItalic, (true, false) => XFontStyleEx.Bold, (false, true) => XFontStyleEx.Italic, _ => XFontStyleEx.Regular });
+
+    private static bool Usable(string family, XFontStyleEx style)
+    {
+        lock (usable)
+        {
+            if (usable.TryGetValue((family, style), out var known)) return known;
+            WindowsFontResolver.Install();
+            bool ok;
+            try { var font = new XFont(family, 10, style); ok = font.CellSpace > 0 && font.GetHeight() > 0; }
+            catch (Exception error) when (error is not OutOfMemoryException and not OperationCanceledException) { ok = false; }
+            return usable[(family, style)] = ok;
+        }
+    }
 
     /// Yazı kutusunun üst kenarından ilk satırın taban çizgisine uzaklık ve satır yüksekliği (nokta).
     /// Sayfadan alınan bir satırı aynı taban çizgisine oturtmak ve önizlemeyi kayıtla hizalamak için.

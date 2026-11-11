@@ -97,6 +97,8 @@ public static class TextRewriter
                 catch (Exception error) when (error is IOException or ArgumentException or NotSupportedException) { }
                 // Ad, yazı tipi çözümleyicinin aynı dosyayı bulabileceği bir ad olmalı.
                 if (string.IsNullOrWhiteSpace(name) || FindFontFile(Parse(name, false).Family, false, false) is null) name = family;
+                // PDFsharp'ın okuyamadığı dosyalar kurulu sayılmaz.
+                if (!PdfAnnotator.Usable(name)) name = null;
             }
             return families[family] = name;
         }
@@ -317,7 +319,7 @@ public static class TextRewriter
         if (known is not null)
         {
             var style = (bold, italic) switch { (true, true) => " Bold Italic", (true, false) => " Bold", (false, true) => " Italic", _ => "" };
-            var exact = WindowsFontResolver.Locate(known[index] + ".ttf", known[index] + ".ttc", family + style + ".ttf", family.Replace(" ", "") + style.Replace(" ", "") + ".ttf", known[0] + ".ttf", family + ".ttf");
+            var exact = WindowsFontResolver.Locate(known[index] + ".ttf", family + style + ".ttf", family.Replace(" ", "") + style.Replace(" ", "") + ".ttf", known[0] + ".ttf", family + ".ttf", known[index] + ".ttc");
             if (exact is not null) return exact;
         }
         // Bilinmeyen aile: dosya adı aileyle başlayan .ttf'ler arasında stile göre seç.

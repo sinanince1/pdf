@@ -299,7 +299,7 @@ internal static class Program
         await Test("Eklenen yazıda yazı tipi ailesi ve koleksiyon (.ttc) dosyaları", () =>
         {
             var folder = Folder("yazi-tipi");
-            var family = new[] { "Times New Roman", "Liberation Serif", "DejaVu Serif", "Georgia", "Comic Sans MS" }.FirstOrDefault(f => TextRewriter.FindFontFile(f, false, false) is not null);
+            var family = new[] { "Times New Roman", "Liberation Serif", "DejaVu Serif", "Georgia", "Comic Sans MS" }.FirstOrDefault(f => TextRewriter.FindFontFile(f, false, false) is not null && PdfAnnotator.Usable(f));
             if (family is null) Console.WriteLine("  BİLGİ Arial dışında bilinen bir aile kurulu değil; aile testi atlandı");
             else
             {
