@@ -21,17 +21,18 @@
           </Border>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Name="UndoButton" Classes="ghost" Click="Undo_Click" IsEnabled="False" ToolTip.Tip="Geri al (Ctrl+Z)"><PathIcon Data="{StaticResource IconUndo}" Width="15" Height="15"/></Button>
+            <Button Name="RedoButton" Classes="ghost" Click="Redo_Click" IsEnabled="False" ToolTip.Tip="İleri al: geri alınanı yeniden uygular (Ctrl+Y)"><PathIcon Data="{StaticResource IconUndo}" Width="15" Height="15" RenderTransform="scaleX(-1)"/></Button>
             <Button Name="DeleteButton" Classes="ghost" Click="Delete_Click" IsEnabled="False" ToolTip.Tip="Seçili öğeyi sil (Delete)"><PathIcon Data="{StaticResource IconDelete}" Width="15" Height="15"/></Button>
           </StackPanel>
           <WrapPanel VerticalAlignment="Center">
             <RadioButton Name="SelectTool" Classes="tool" GroupName="Tool" IsChecked="True" ToolTip.Tip="Seç ve taşı: sayfadaki bir yazıyı veya resmi sürükleyerek taşıyın. Birkaçını birden seçmek için boş yerden sürükleyin veya Shift ile tıklayın. Delete siler, ok tuşları ince ayar yapar.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconCursor}" Width="14" Height="14"/><TextBlock Text="Seç"/></StackPanel>
             </RadioButton>
-            <RadioButton Name="RewriteTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Var olan yazıyı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
+            <RadioButton Name="RewriteTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Tek satırı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconEdit}" Width="14" Height="14"/><TextBlock Text="Yazıyı değiştir"/></StackPanel>
             </RadioButton>
-            <RadioButton Name="ParagraphTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Paragrafı değiştir: paragrafa tıklayın, metni düzenleyin, Ctrl+Enter ile uygulayın. Satırlar kutuya göre yeniden akar.">
-              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconParagraph}" Width="14" Height="14"/><TextBlock Text="Paragraf"/></StackPanel>
+            <RadioButton Name="ParagraphTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Birkaç satırlık paragrafı tek kutuda değiştir: paragrafa tıklayın, metni düzenleyin (ekleyin, silin, yeniden yazın), Ctrl+Enter ile uygulayın. Satır sonları kendiliğinden yeniden ayarlanır; sığmazsa yazı biraz küçülür. Tek satır için “Yazıyı değiştir” yeterlidir.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconParagraph}" Width="14" Height="14"/><TextBlock Text="Paragrafı değiştir"/></StackPanel>
             </RadioButton>
             <RadioButton Name="TextTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Yazı ekle: sayfada istediğiniz yere tıklayıp yazın. Yazı tipini, boyutunu ve rengini sağdaki kutulardan seçin.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconText}" Width="14" Height="14"/><TextBlock Text="Yazı ekle"/></StackPanel>
@@ -56,7 +57,7 @@
               <StackPanel Orientation="Horizontal" Spacing="6"><Image Source="avares://PanDaF/Assets/LogoIB.png" Height="18"/><TextBlock Text="IB"/></StackPanel>
             </Button>
             <Button Classes="ghost" Click="AddBoth_Click" ToolTip.Tip="Her sayfaya iki logoyu da ekle" Content="İkisini her sayfaya"/>
-            <Button Classes="ghost" Click="AddSignature_Click" ToolTip.Tip="Kayıtlı imzanızı sağ alta ekler. İlk kullanımda imza resminizi seçersiniz; Ayarlar'dan değiştirilebilir.">
+            <Button Name="SignatureButton" Classes="ghost" Click="AddSignature_Click" ToolTip.Tip="Kayıtlı imzalarınızdan birini sayfaya ekler. İmzalar bu bilgisayarda saklanır; istediğiniz kadar imza yükleyebilirsiniz.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconSignature}" Width="14" Height="14"/><TextBlock Text="İmza"/></StackPanel>
             </Button>
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
@@ -66,13 +67,15 @@
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
             <!-- Yazı seçenekleri -->
             <StackPanel Name="TextOptions" Orientation="Horizontal" VerticalAlignment="Center">
-              <ComboBox Name="FontBox" Width="170" FontSize="13" Margin="0,0,6,0" SelectionChanged="Font_Changed" ToolTip.Tip="Yazı tipi: Arial ve bu sayfada kullanılan yazı tipleri"/>
+              <ComboBox Name="FontBox" Width="230" MaxDropDownHeight="420" FontSize="13" Margin="0,0,6,0" SelectionChanged="Font_Changed" ToolTip.Tip="Yazı tipi: önce bu belgede kullanılanlar, ardından bilgisayardaki tüm yazı tipleri"/>
               <ComboBox Name="FontSizeBox" Width="72" FontSize="13" SelectedIndex="2" SelectionChanged="FontSize_Changed" ToolTip.Tip="Yazı boyutu">
                 <ComboBoxItem Content="10"/><ComboBoxItem Content="12"/><ComboBoxItem Content="14"/><ComboBoxItem Content="16"/><ComboBoxItem Content="18"/><ComboBoxItem Content="22"/><ComboBoxItem Content="28"/><ComboBoxItem Content="36"/>
               </ComboBox>
               <ToggleButton Name="BoldBox" Content="K" FontWeight="Bold" Width="30" Height="28" Margin="6,0,0,0" IsCheckedChanged="TextOption_Changed" ToolTip.Tip="Kalın"/>
             </StackPanel>
             <StackPanel Name="Swatches" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <Button Name="ColorButton" Classes="ghost" Click="CustomColor_Click" Margin="4,0,0,0" ToolTip.Tip="Başka bir renk seç"><PathIcon Data="{StaticResource IconPalette}" Width="15" Height="15"/></Button>
+            <ToggleButton Name="PickColorButton" Background="Transparent" BorderThickness="0" Padding="12,7" CornerRadius="8" IsCheckedChanged="PickColor_Changed" ToolTip.Tip="Rengi belgeden al: düğmeye basın, sonra sayfada rengini almak istediğiniz yazıya veya yere tıklayın"><PathIcon Data="{StaticResource IconDropper}" Width="15" Height="15"/></ToggleButton>
             <StackPanel Name="PenOptions" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0" IsVisible="False">
               <TextBlock Text="Kalınlık" Classes="small" VerticalAlignment="Center" Margin="0,0,6,0"/>
               <Slider Name="PenWidth" Width="90" Minimum="1" Maximum="12" Value="2.5" VerticalAlignment="Center"/>

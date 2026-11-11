@@ -222,18 +222,8 @@ public sealed class WindowsFontResolver : IFontResolver
     /// Arial dışındaki bir aile istenirse ve bilgisayarda kuruluysa o dosya kullanılır; yoksa Arial (ve yedekleri).
     public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
     {
-        var family = TextRewriter.Parse(familyName, false).Family;
-        if (family.Length > 0 && !family.Equals("Arial", StringComparison.OrdinalIgnoreCase))
-        {
-            var file = TextRewriter.FindFontFile(family, bold, italic);
-            if (file is not null)
-            {
-                // Kalın/eğik dosyası yoksa düz dosya döner; o durumda PDFsharp kalını/eğiği kendisi üretir.
-                var regular = bold || italic ? TextRewriter.FindFontFile(family, false, false) : null;
-                var same = regular is not null && string.Equals(regular, file, StringComparison.OrdinalIgnoreCase);
-                return new FontResolverInfo(FilePrefix + file, same && bold, same && italic);
-            }
-        }
+        if (!string.IsNullOrWhiteSpace(familyName) && !familyName.Trim().Equals("Arial", StringComparison.OrdinalIgnoreCase) && TextRewriter.FontFace(familyName, bold, italic) is { } found)
+            return new FontResolverInfo(FilePrefix + found.Path, found.SimulateBold, found.SimulateItalic);
         var face = (bold, italic) switch { (true, true) => "bi", (true, false) => "b", (false, true) => "i", _ => "r" };
         return new FontResolverInfo("pandaf-" + face);
     }

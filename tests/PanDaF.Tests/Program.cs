@@ -314,6 +314,19 @@ internal static class Program
                 Check(TextRewriter.SystemFamily("ABCDEF+" + family.Replace(" ", "") + "-Bold") is { } system && TextRewriter.FindFontFile(TextRewriter.Parse(system, false).Family, false, false) is not null, "PDF yazı tipi adı kurulu aileye eşlendi");
             }
             Check(TextRewriter.SystemFamily("ABCDEF+BöyleBirYazıTipiYok") is null, "kurulu olmayan aile listelenmez");
+            // Kurulu yazı tipleri dizini ve belge taraması
+            var catalog = FontCatalog.Families;
+            Console.WriteLine($"  BİLGİ kurulu yazı tipi ailesi: {catalog.Count}" + (catalog.Count > 0 ? $" (ör. {string.Join(", ", catalog.Take(4))})" : ""));
+            if (catalog.Count > 0)
+            {
+                var any = catalog[0];
+                Check(FontCatalog.Find(any, false, false) is { } hit && File.Exists(hit.Face.Path) && FontCatalog.Match("ABCDEF+" + any.Replace(" ", "") + "-Bold") is not null, $"dizin: aile dosyasıyla bulunuyor ve PDF adından eşleniyor ({any})");
+                Check(TextRewriter.FontFace(any, true, false) is not null, "dizindeki aile PDF yazı tipi olarak çözülüyor");
+            }
+            var surveyed = Path.Combine(folder, "tarama.pdf");
+            PdfAnnotator.Save(threePages, surveyed, [new Mark { Kind = MarkKind.Text, Page = 0, X = 60, Y = 60, Width = 400, Height = 30, Text = "Mor yazı mor yazı mor yazı", FontSize = 16, Color = "#7A1FA2" }]);
+            var survey = TextRewriter.Survey(File.ReadAllBytes(surveyed));
+            Check(survey.Colors.Contains("#7A1FA2") && survey.Fonts.Count > 0 && survey.Fonts.Any(f => f.Installed), $"belge taraması: renkler {string.Join(" ", survey.Colors)}; yazı tipleri {string.Join(", ", survey.Fonts.Select(f => f.Name + (f.Installed ? "" : " (kurulu değil)")))}");
             // İki TrueType dosyasından bir koleksiyon kur, ikinci yüzü geri çıkar.
             var first = WindowsFontResolver.Locate("arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf");
             var second = WindowsFontResolver.Locate("arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf");

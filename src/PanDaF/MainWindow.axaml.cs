@@ -181,8 +181,8 @@ public partial class MainWindow : Window
         shift.Click += (_, _) => { App.Settings.ShiftPanel = !App.Settings.ShiftPanel; App.Settings.Save(); };
         var startup = new MenuItem { Header = "Bilgisayar açılınca başlat", Icon = new PathIcon { Data = App.Settings.StartWithWindows ? (Avalonia.Media.Geometry)this.FindResource("IconCheck")! : null } };
         startup.Click += (_, _) => { App.Settings.StartWithWindows = !App.Settings.StartWithWindows; App.Settings.Save(); AutoStart.Apply(App.Settings.StartWithWindows); };
-        var signature = new MenuItem { Header = "İmza resmini seç…" };
-        signature.Click += async (_, _) => { if (await EditView.ChooseSignature(this)) await Info("İmza kaydedildi. Düzenleyicide “İmza” düğmesiyle eklenir."); };
+        var signature = new MenuItem { Header = "İmza ekle…" };
+        signature.Click += async (_, _) => { if ((await EditView.ChooseSignatures(this)).Count > 0) await Info("İmza kaydedildi ve bu bilgisayarda saklanıyor. Düzenleyicide “İmza” düğmesiyle eklenir; orada birden fazla imza tutabilir, istemediğinizi silebilirsiniz."); };
         var about = new MenuItem { Header = "Hakkında" };
         about.Click += async (_, _) => await About();
         var exit = new MenuItem { Header = "PanDaF'tan çık" };

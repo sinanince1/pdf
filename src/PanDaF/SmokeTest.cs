@@ -216,9 +216,24 @@ internal static class SmokeTest
             await Drag(505, 186, -40, 420);
             Check(move.SmokeMarks.Any(m => m.Kind == MarkKind.Image) && move.SmokeMarks.Any(m => m.Cover), "Sayfadaki resim taşındı, eski yeri örtüldü");
             move.SmokeUndo(); await Idle();
-            Check(!move.SmokeMarks.Any(m => m.Kind == MarkKind.Image) && !move.SmokeMarks.Any(m => m.Cover), "Geri al resmi eski yerine döndürdü");
+            Check(!move.SmokeMarks.Any(m => m.Kind == MarkKind.Image) && !move.SmokeMarks.Any(m => m.Cover) && move.CanRedo, "Geri al resmi eski yerine döndürdü");
+            move.SmokeRedo(); await Idle();
+            Check(move.SmokeMarks.Count(m => m.Kind == MarkKind.Image) == 1 && move.SmokeMarks.Count(m => m.Cover) == 1 && !move.CanRedo, "İleri al, geri alınan taşımayı yeniden uyguladı");
+            move.SmokeUndo(); await Idle();
             await Drag(505, 186, -40, 420);
             Check(move.SmokeMarks.Count(m => m.Kind == MarkKind.Image) == 1 && move.SmokeMarks.Count(m => m.Cover) == 1, "Geri alınan resim yeniden taşınabildi");
+            // Yazı tipi listesi ve renkler: belgedekiler en üstte ve işaretli
+            await WaitUntil(() => move.SurveyReady, 60000); await Settle(400);
+            Check(move.FontChoices.Count > 0 && move.FontChoices[0].EndsWith("(bu belgede var)") && move.SelectedFontLabel == move.FontChoices[0], $"Yazı tipi listesinde belgedeki yazı tipi en üstte ve seçili ({move.FontChoices.Count} yazı tipi; ilk: {move.FontChoices.FirstOrDefault()})");
+            Check(move.FontChoices.Any(f => f == "Arial" || f.StartsWith("Arial  (")), "Arial listede");
+            // Seçili sayfa yazısının rengini değiştir; damlalıkla o rengi geri al
+            move.SmokePick("Soru 12:"); move.SmokeColor("#C2185B"); await Idle();
+            Check(move.LineColor("Soru 12:") == "#C2185B" && move.PickedCount == 1, $"Seçili sayfa yazısı yeniden renklendirildi ({move.LineColor("Soru 12:")})");
+            move.SmokeTool("text"); move.SmokeTool("select"); move.SmokeColor("#16805C");
+            var q12 = move.SmokeLine("Soru 12:");
+            move.SmokeDropper(true); move.SmokePointer(0, q12.X + 30, q12.Y + 4); move.SmokePointer(2, q12.X + 30, q12.Y + 4); await Settle();
+            Check(move.CurrentColor == "#C2185B" && move.SwatchColors.Contains("#C2185B"), $"Damlalık yazının rengini aldı ({move.CurrentColor})");
+            move.SmokeColor("#000000");
             // Yazı ekle: kutu açılır, yazılır, yeniden çizimde kapanmaz
             move.SmokeTool("text");
             move.SmokePointer(0, 360, 330); move.SmokePointer(2, 360, 330); await Settle(400);
@@ -234,6 +249,14 @@ internal static class SmokeTest
             var moved3 = movedLines.FirstOrDefault(l => l.Text.StartsWith("Soru 3:"));
             Check(moved3 is not null && Math.Abs(moved3.X - (q3.X + 200)) < 2.5 && Math.Abs(moved3.Y - (q3.Y + 6)) < 2.5, $"Kaydedilen PDF'de taşınan satır yeni yerinde ({moved3?.X:0.0},{moved3?.Y:0.0}; beklenen {q3.X + 200:0.0},{q3.Y + 6:0.0})");
             Check(movedLines.Count(l => l.Text.StartsWith("Soru 3:")) == 1 && !movedLines.Any(l => l.Text.StartsWith("Soru 9:")) && movedLines.Any(l => l.Text.StartsWith("Elle eklenen yazı ĞÜŞİÖÇ")), "Kaydedilen PDF: taşınan satır tek, silinen yok, eklenen yazı var");
+            Check(movedLines.First(l => l.Text.StartsWith("Soru 12:")).Color == "#C2185B", "Kaydedilen PDF'de yeniden renklendirilen satır yeni renginde");
+            // İmzalar kalıcı klasörde tutulur
+            var signatureFile = Path.Combine(EditView.SmokeSignatureFolder, "duman-testi-" + Guid.NewGuid().ToString("N")[..8] + ".png");
+            Directory.CreateDirectory(EditView.SmokeSignatureFolder);
+            using (var bitmap = Images.Load(images[0])) File.WriteAllBytes(signatureFile, Images.Png(bitmap));
+            var listed = EditView.Signatures().Contains(signatureFile);
+            File.Delete(signatureFile);
+            Check(listed && !EditView.Signatures().Contains(signatureFile), "Kayıtlı imza listeleniyor ve silinebiliyor");
             using (var raster = PdfRasterDocument.Open(movedOut[0])) { using var bitmap = raster.RenderBitmap(0, 72); File.WriteAllBytes(Path.Combine(shots, "23-tasinmis-sayfa.png"), Images.Png(bitmap)); }
 
             // PDF'den resme

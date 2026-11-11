@@ -91,12 +91,18 @@ public static class TextRewriter
             if (families.TryGetValue(family, out var cached)) return cached;
             string? name = null;
             var file = FindFontFile(family, false, false);
-            if (file is not null)
+            if (file is null)
+            {
+                // Bilinen dosya adlarıyla bulunamadı: kurulu yazı tipleri dizininde gerçek aile adıyla ara.
+                name = FontCatalog.Match(pdfFontName);
+                if (name is not null && !PdfAnnotator.Usable(name)) name = null;
+            }
+            else
             {
                 try { using var typeface = SkiaSharp.SKTypeface.FromFile(file); name = typeface?.FamilyName; }
                 catch (Exception error) when (error is IOException or ArgumentException or NotSupportedException) { }
                 // Ad, yazı tipi çözümleyicinin aynı dosyayı bulabileceği bir ad olmalı.
-                if (string.IsNullOrWhiteSpace(name) || FindFontFile(Parse(name, false).Family, false, false) is null) name = family;
+                if (string.IsNullOrWhiteSpace(name) || FontFace(name, false, false) is null) name = family;
                 // PDFsharp'ın okuyamadığı dosyalar kurulu sayılmaz.
                 if (!PdfAnnotator.Usable(name)) name = null;
             }
@@ -106,7 +112,68 @@ public static class TextRewriter
 
     /// Bir satırın genişliğini verilen ailenin dosyasıyla ölçer (nokta).
     public static double MeasureWidth(string text, string family, double size, bool bold, bool italic) =>
-        Measurer.For(FindFontFile(string.IsNullOrWhiteSpace(family) ? "Arial" : Parse(family, false).Family, bold, italic) ?? WindowsFontResolver.Locate("arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf"))(text, size);
+        Measurer.For(FontFace(string.IsNullOrWhiteSpace(family) ? "Arial" : family, bold, italic)?.Path ?? WindowsFontResolver.Locate("arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf"))(text, size);
+
+    /// Ailenin bu bilgisayardaki dosyası: önce kurulu yazı tipleri dizininde tam adıyla, bulunamazsa bilinen dosya
+    /// adlarıyla aranır. Kalın/eğik dosyası yoksa düz dosya döner ve o biçim yapay olarak üretilir.
+    public static (string Path, bool SimulateBold, bool SimulateItalic)? FontFace(string family, bool bold, bool italic)
+    {
+        if (FontCatalog.Find(family, bold, italic) is { } hit)
+            return (hit.Face.Path, bold && !hit.Face.Bold, italic && !hit.Face.Italic);
+        var parsed = Parse(family, false).Family;
+        var file = parsed.Length == 0 ? null : FindFontFile(parsed, bold, italic);
+        if (file is null) return null;
+        var regular = bold || italic ? FindFontFile(parsed, false, false) : null;
+        var same = regular is not null && string.Equals(regular, file, StringComparison.OrdinalIgnoreCase);
+        return (file, same && bold, same && italic);
+    }
+
+    /// Belgenin taraması: kullanılan yazı tipleri ve yazı renkleri, en çok kullanılandan aza.
+    public sealed record SurveyFont(string Name, bool Installed);
+    public sealed record DocumentSurvey(List<SurveyFont> Fonts, List<string> Colors);
+
+    public static DocumentSurvey Survey(byte[] document, int maxPages = 40, CancellationToken token = default)
+    {
+        var fonts = new Dictionary<string, int>(); var colors = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var pdf = PigDocument.Open(document);
+            for (var number = 1; number <= Math.Min(pdf.NumberOfPages, maxPages); number++)
+            {
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    foreach (var letter in pdf.GetPage(number).Letters)
+                    {
+                        if (string.IsNullOrWhiteSpace(letter.Value)) continue;
+                        if (!string.IsNullOrEmpty(letter.FontName)) fonts[letter.FontName] = fonts.GetValueOrDefault(letter.FontName) + 1;
+                        try
+                        {
+                            if (letter.Color is not { } fill) continue;
+                            var (r, g, b) = fill.ToRGBValues();
+                            var hex = $"#{Channel(r):X2}{Channel(g):X2}{Channel(b):X2}";
+                            colors[hex] = colors.GetValueOrDefault(hex) + 1;
+                        }
+                        catch (Exception error) when (error is InvalidOperationException or NotSupportedException or ArgumentException) { }
+                    }
+                }
+                catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { }
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { }
+        var named = new Dictionary<string, (int Count, bool Installed)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (pdfName, count) in fonts)
+        {
+            var system = SystemFamily(pdfName);
+            var name = system ?? System.Text.RegularExpressions.Regex.Replace(Parse(pdfName, false).Family, "(?<=[a-z])(?=[A-Z])", " ").Trim();
+            if (name.Length == 0) continue;
+            var before = named.GetValueOrDefault(name);
+            named[name] = (before.Count + count, before.Installed || system is not null);
+        }
+        return new DocumentSurvey(
+            [.. named.OrderByDescending(f => f.Value.Count).Select(f => new SurveyFont(f.Key, f.Value.Installed))],
+            [.. colors.OrderByDescending(c => c.Value).Select(c => c.Key)]);
+    }
 
     private static List<TextLine> Lines(UglyToad.PdfPig.Content.Page page)
     {

@@ -18,6 +18,9 @@ public partial class EditView : UserControl
     private readonly MainWindow shell;
     private readonly List<Mark> marks = [];
     private readonly Stack<(List<Mark> Marks, byte[] Document)> history = new();
+    private readonly Stack<(List<Mark> Marks, byte[] Document)> redo = new();
+    private TextRewriter.DocumentSurvey? survey;      // belgedeki yazı tipleri ve yazı renkleri
+    private bool picking;                             // damlalık: sıradaki tıklama rengi sayfadan alır
     // Çalışılan belge: yerinde yazı değişiklikleri bu baytlara işlenir; sayfalar buradan çizilir.
     private byte[] document = [];
     private byte[] original = [];
@@ -67,7 +70,8 @@ public partial class EditView : UserControl
         drop.FilesChosen += files => Load(files[0]);
         DropHost.Content = drop;
         DropHelper.Attach(this, files => { if (file is null) Load(files[0]); else _ = AddImageFiles(files.Where(FileKinds.IsImage).ToArray()); });
-        foreach (var hex in new[] { "#000000", "#D9480F", "#1F5FBF", "#16805C", "#F2C811" }) AddSwatch(hex);
+        BuildSwatches(); FillFonts();
+        _ = FontCatalog.Preload().ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(FillFonts), TaskScheduler.Default);
         foreach (var tool in new[] { SelectTool, RewriteTool, ParagraphTool, TextTool, WhiteoutTool, HighlightTool, PenTool })
             tool.IsCheckedChanged += (s, _) => { if (s is RadioButton { IsChecked: true } button) { Current = ToolOf(button); ToolChanged(); } };
         // Eklenen yazılar sayfanın kendi yazısı gibi gri tonlu yumuşatmayla çizilir (renkli kenar olmadan).
@@ -83,29 +87,122 @@ public partial class EditView : UserControl
 
     public int MarkCount => marks.Count;
 
-    private void AddSwatch(string hex)
+    private static readonly string[] BaseColors = ["#000000", "#D9480F", "#1F5FBF", "#16805C", "#F2C811"];
+
+    /// Renk kutuları: hazır renkler, belgedeki yazı renkleri (çerçevesi kesikli) ve gerekirse seçilen özel renk.
+    private void BuildSwatches()
     {
+        Swatches.Children.Clear(); swatches.Clear();
+        foreach (var hex in BaseColors) AddSwatch(hex, "Renk");
+        var fromDocument = (survey?.Colors ?? []).Where(c => !BaseColors.Contains(c, StringComparer.OrdinalIgnoreCase) && !IsNearWhite(c)).Take(6).ToList();
+        if (fromDocument.Count > 0) Swatches.Children.Add(new Rectangle { Width = 1, Height = 18, Fill = Ui.Brush("Line"), Margin = new Thickness(5, 0, 5, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+        foreach (var hex in fromDocument) AddSwatch(hex, "Bu belgedeki yazı rengi");
+        if (!swatches.ContainsKey(color)) AddSwatch(color, "Seçtiğiniz renk");
+        MarkSwatch();
+    }
+
+    private static bool IsNearWhite(string hex) { var c = PdfAnnotator.ParseColor(hex); return c.R > 240 && c.G > 240 && c.B > 240; }
+
+    private void AddSwatch(string hex, string tip)
+    {
+        hex = hex.ToUpperInvariant();
         var border = new Border
         {
             Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Margin = new Thickness(3, 0, 3, 0), Cursor = new Cursor(StandardCursorType.Hand),
-            Background = Ui.BrushOf(hex), BorderBrush = Ui.Brush("Line"), BorderThickness = new Thickness(hex == color ? 3 : 1),
+            Background = Ui.BrushOf(hex), BorderBrush = Ui.Brush("Line"), BorderThickness = new Thickness(1),
         };
-        ToolTip.SetTip(border, "Renk");
+        ToolTip.SetTip(border, tip);
         border.PointerPressed += (_, e) => { e.Handled = true; SetColor(hex); };
         swatches[hex] = border;
         Swatches.Children.Add(border);
     }
 
+    private void MarkSwatch()
+    {
+        foreach (var (key, border) in swatches) { border.BorderThickness = new Thickness(key == color ? 3 : 1); border.BorderBrush = key == color ? Ui.Brush("Ink") : Ui.Brush("Line"); }
+    }
+
     private void SetColor(string hex)
     {
-        color = hex;
-        foreach (var (key, border) in swatches) { border.BorderThickness = new Thickness(key == hex ? 3 : 1); border.BorderBrush = key == hex ? Ui.Brush("Ink") : Ui.Brush("Line"); }
+        color = hex.ToUpperInvariant();
+        if (swatches.ContainsKey(color)) MarkSwatch(); else BuildSwatches();
+        // Seçili sayfa yazıları: belgede yerinde yeniden renklendirilir.
+        if (picked.Any(o => o.Line is not null) && !busy) { _ = RecolorPicked(color); return; }
         var targets = Chosen.Where(m => m.Kind is MarkKind.Text or MarkKind.Ink or MarkKind.Highlight).ToList();
         if (targets.Count == 0) return;
         Remember();
-        foreach (var mark in targets) mark.Color = hex;
-        if (editor?.Tag is Mark edited && targets.Contains(edited)) Dress(editor, Ui.BrushOf(hex), Ui.Brush("Primary"), Argb(200, 255, 255, 255));
+        foreach (var mark in targets) mark.Color = color;
+        if (editor?.Tag is Mark edited && targets.Contains(edited)) Dress(editor, Ui.BrushOf(color), Ui.Brush("Primary"), Argb(200, 255, 255, 255));
         Redraw();
+    }
+
+    /// Seç aracıyla seçilmiş sayfa satırlarını aynı yazıyla, yeni renkte yeniden yazar.
+    private async Task RecolorPicked(string hex)
+    {
+        var targets = picked.Where(o => o.Line is not null).ToList();
+        var n = page; var before = document;
+        Remember();
+        busy = true;
+        try
+        {
+            var (current, done) = await Task.Run(() =>
+            {
+                var bytes = before; var count = 0;
+                foreach (var item in targets)
+                {
+                    try { if (TextRewriter.Blocker(bytes, n, item.Line!) is not null) continue; bytes = TextRewriter.Replace(bytes, n, item.Line!, item.Line!.Text, fillColor: hex).Document; count++; }
+                    catch (UserFacingException) { }
+                }
+                return (bytes, count);
+            });
+            if (done == 0) { if (history.Count > 0) history.Pop(); await shell.Info("Bu yazının rengi yerinde değiştirilemiyor. Yazıyı sürükleyip taşıdıktan sonra rengini değiştirebilirsiniz."); return; }
+            document = current;
+            await ReloadPages(keepSelection: true);
+            // Aynı satırlar seçili kalsın: başka bir renk de denenebilsin.
+            foreach (var item in objects.Where(o => o.Line is not null && targets.Any(t => t.Bounds.Contains(o.Bounds.Center)))) picked.Add(item);
+        }
+        finally { busy = false; Redraw(); }
+    }
+
+    // Özel renk: renk seçici açılır pencerede.
+    private void CustomColor_Click(object? sender, RoutedEventArgs e)
+    {
+        var start = Color.TryParse(color, out var parsed) ? parsed : Colors.Black;
+        var view = new ColorView { Color = start, IsAlphaEnabled = false, IsAlphaVisible = false, IsColorModelVisible = false, IsAccentColorsVisible = false, Width = 320 };
+        var apply = new Button { Content = "Bu rengi kullan", Classes = { "primary" }, FontSize = 14, Padding = new Thickness(16, 7), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        var flyout = new Flyout { Content = new StackPanel { Children = { view, apply } }, Placement = PlacementMode.BottomEdgeAlignedRight };
+        apply.Click += (_, _) => { var c = view.Color; flyout.Hide(); SetColor($"#{c.R:X2}{c.G:X2}{c.B:X2}"); };
+        flyout.ShowAt(ColorButton);
+    }
+
+    // Damlalık: sıradaki tıklama, tıklanan yazının (yoksa noktanın) rengini alır.
+    private void PickColor_Changed(object? sender, RoutedEventArgs e)
+    {
+        picking = PickColorButton.IsChecked == true;
+        if (Overlay is null) return;
+        Overlay.Cursor = new Cursor(picking ? StandardCursorType.Cross : Current == Tool.Select ? StandardCursorType.Arrow : Current is Tool.Text or Tool.Rewrite or Tool.ParagraphEdit ? StandardCursorType.Ibeam : StandardCursorType.Cross);
+        if (picking) Summary.Text = "Rengini almak istediğiniz yazıya veya yere tıklayın.";
+        else Redraw();
+    }
+
+    private string ColorAt(Point p)
+    {
+        // Yazının üstüne tıklandıysa yazının kendi rengi (kenar yumuşatmasından etkilenmez).
+        var line = lines.FirstOrDefault(l => p.X >= l.X - 1 && p.X <= l.X + l.Width + 1 && p.Y >= l.Y - 1 && p.Y <= l.Y + l.Height + 1);
+        if (line is not null) return line.Color;
+        if (!pages.TryGetValue(page, out var entry)) return color;
+        var bitmap = entry.Skia; var scale = RenderDpi / 72.0;
+        var cx = Math.Clamp((int)(p.X * scale), 0, bitmap.Width - 1); var cy = Math.Clamp((int)(p.Y * scale), 0, bitmap.Height - 1);
+        static int Distance(SKColor a, SKColor b) => Math.Abs(a.Red - b.Red) + Math.Abs(a.Green - b.Green) + Math.Abs(a.Blue - b.Blue);
+        // Çevredeki en yaygın renk zemindir; tıklanan noktanın yakınında zeminden en farklı piksel (ince çizgi, harf) seçilir.
+        var counts = new Dictionary<SKColor, int>();
+        for (var y = Math.Max(0, cy - 12); y <= Math.Min(bitmap.Height - 1, cy + 12); y += 2)
+            for (var x = Math.Max(0, cx - 12); x <= Math.Min(bitmap.Width - 1, cx + 12); x += 2) { var c = bitmap.GetPixel(x, y); counts[c] = counts.GetValueOrDefault(c) + 1; }
+        var background = counts.MaxBy(c => c.Value).Key;
+        var best = bitmap.GetPixel(cx, cy); var far = Distance(best, background);
+        for (var y = Math.Max(0, cy - 3); y <= Math.Min(bitmap.Height - 1, cy + 3); y++)
+            for (var x = Math.Max(0, cx - 3); x <= Math.Min(bitmap.Width - 1, cx + 3); x++) { var c = bitmap.GetPixel(x, y); var d = Distance(c, background); if (d > far) { far = d; best = c; } }
+        return $"#{best.Red:X2}{best.Green:X2}{best.Blue:X2}";
     }
 
     private void ToolChanged()
@@ -118,6 +215,7 @@ public partial class EditView : UserControl
         if (Current == Tool.Highlight && color == "#000000") SetColor("#F2C811");
         if (Current != Tool.Rewrite) EndRewrite(commit: false);
         if (Current != Tool.ParagraphEdit) EndParagraph(commit: false);
+        if (PickColorButton.IsChecked == true) PickColorButton.IsChecked = false;
         Overlay.Cursor = new Cursor(Current == Tool.Select ? StandardCursorType.Arrow : Current is Tool.Text or Tool.Rewrite or Tool.ParagraphEdit ? StandardCursorType.Ibeam : StandardCursorType.Cross);
         if (Current == Tool.ParagraphEdit && file is not null) _ = LoadParagraphs(); else Redraw();
     }
@@ -138,7 +236,9 @@ public partial class EditView : UserControl
             Cache(0, first);
         }
         catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException) { await shell.Error(error is UserFacingException ? error.Message : "Dosya okunamadı: " + error.Message); return; }
-        file = path; page = 0; marks.Clear(); history.Clear(); Select(null); lines = []; objects = []; pageFonts = []; firstFonts = true;
+        file = path; page = 0; marks.Clear(); history.Clear(); redo.Clear(); Select(null); lines = []; objects = []; pageFonts = []; firstFonts = true; survey = null;
+        BuildSwatches();
+        _ = LoadSurvey(document);
         DropHost.IsVisible = false;
         Toolbar.IsVisible = PageArea.IsVisible = Footer.IsVisible = true;
         await ShowPage(0);
@@ -244,6 +344,7 @@ public partial class EditView : UserControl
             }
         DeleteButton.IsEnabled = selected is not null || picked.Count > 0;
         UndoButton.IsEnabled = history.Count > 0;
+        RedoButton.IsEnabled = redo.Count > 0;
         var changedText = !ReferenceEquals(document, original);
         Summary.Text = Current == Tool.ParagraphEdit ? (paragraphs.Count > 0 ? "Değiştirmek istediğiniz paragrafa tıklayın. Ctrl+Enter uygular." : "Bu sayfada paragraf bulunamadı.")
             : Current == Tool.Rewrite ? (lines.Count > 0 ? "Değiştirmek istediğiniz yazıya tıklayın." : "Bu sayfada değiştirilebilir yazı bulunamadı (taranmış veya döndürülmüş olabilir).")
@@ -319,6 +420,7 @@ public partial class EditView : UserControl
         if (InTextBox(e.Source)) return;
         Focus();
         var p = e.GetPosition(Overlay);
+        if (picking) { var taken = ColorAt(p); PickColorButton.IsChecked = false; SetColor(taken); return; }
         if (editor is not null) { if (selected is not null && Contains(selected, p)) return; EndEdit(); }
         switch (Current)
         {
@@ -389,6 +491,7 @@ public partial class EditView : UserControl
             if (over != hoveredParagraph) { hoveredParagraph = over; Redraw(); }
             return;
         }
+        if (picking) return;
         if (Current == Tool.Select && !pressed && !banding && !busy)
         {
             var over = Hit(p);
@@ -737,29 +840,47 @@ public partial class EditView : UserControl
         {
             FontSizeBox.SelectedItem = FontSizeBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => double.TryParse(i.Content?.ToString(), out var v) && Math.Abs(v - mark.FontSize) < .01);
             BoldBox.IsChecked = mark.Bold;
-            var item = FontBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => string.Equals(i.Tag as string, mark.FontFamily, StringComparison.OrdinalIgnoreCase));
+            var item = FontBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => i.Tag is string tag && string.Equals(tag, mark.FontFamily, StringComparison.OrdinalIgnoreCase));
             if (item is null) FontBox.Items.Add(item = FontItem(mark.FontFamily));
             FontBox.SelectedItem = item;
         }
         finally { syncing = false; }
     }
 
-    private static ComboBoxItem FontItem(string family) => new() { Content = family.Length == 0 ? "Arial" : family, Tag = family, FontFamily = FontOf(family), FontSize = 14 };
+    private static ComboBoxItem FontItem(string family, string? note = null) => new() { Content = (family.Length == 0 ? "Arial" : family) + (note is null ? "" : "  (" + note + ")"), Tag = family, FontFamily = FontOf(family), FontSize = 14 };
+
+    private async Task LoadSurvey(byte[] bytes)
+    {
+        TextRewriter.DocumentSurvey result;
+        try { result = await Task.Run(() => { _ = FontCatalog.Families; return TextRewriter.Survey(bytes); }); }
+        catch (Exception error) when (error is not OperationCanceledException) { App.Log(error); return; }
+        if (!ReferenceEquals(bytes, original)) return; // bu arada başka belge açıldı
+        survey = result;
+        BuildSwatches(); FillFonts();
+    }
 
     private bool firstFonts = true;
-    /// Yazı tipi kutusu: Arial ve bu sayfada kullanılan (bilgisayarda da kurulu) yazı tipleri. Belge açılınca
-    /// sayfanın asıl yazı tipi seçili gelir; kullanıcı başka birini seçtiyse seçimi korunur.
+    /// Yazı tipi kutusu: en üstte bu belgede kullanılanlar ("bu belgede var"), altında bilgisayardaki tüm yazı tipleri.
+    /// Belge açılınca belgenin asıl yazı tipi seçili gelir; kullanıcı başka birini seçtiyse seçimi korunur.
     private void FillFonts()
     {
+        if (FontBox is null) return;
         syncing = true;
         try
         {
-            var wanted = firstFonts ? pageFonts.FirstOrDefault() ?? "" : ChosenFont();
-            if (pageFonts.Count > 0) firstFonts = false;
-            if (wanted.Equals("Arial", StringComparison.OrdinalIgnoreCase)) wanted = "";
+            static string Key(string family) => family.Equals("Arial", StringComparison.OrdinalIgnoreCase) ? "" : family;
+            var inDocument = survey?.Fonts ?? [];
+            var installed = inDocument.Where(f => f.Installed).Select(f => Key(f.Name)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var wanted = firstFonts ? installed.FirstOrDefault() ?? "" : ChosenFont();
+            if (survey is not null) firstFonts = false;
             FontBox.Items.Clear();
-            foreach (var family in new[] { "" }.Concat(pageFonts.Where(f => !f.Equals("Arial", StringComparison.OrdinalIgnoreCase)))) FontBox.Items.Add(FontItem(family));
-            var item = FontBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => string.Equals(i.Tag as string, wanted, StringComparison.OrdinalIgnoreCase));
+            foreach (var family in installed) FontBox.Items.Add(FontItem(family, "bu belgede var"));
+            foreach (var font in inDocument.Where(f => !f.Installed))
+                FontBox.Items.Add(new ComboBoxItem { Content = font.Name + "  (bu belgede var; bilgisayarda kurulu değil)", IsEnabled = false, FontSize = 13 });
+            var rest = (FontCatalog.Ready ? FontCatalog.Families : []).Select(Key).Append("").Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(f => !installed.Contains(f, StringComparer.OrdinalIgnoreCase)).OrderBy(f => f.Length == 0 ? "Arial" : f, StringComparer.CurrentCultureIgnoreCase);
+            foreach (var family in rest) FontBox.Items.Add(FontItem(family));
+            var item = FontBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => i.Tag is string tag && string.Equals(tag, wanted, StringComparison.OrdinalIgnoreCase));
             if (item is null) FontBox.Items.Add(item = FontItem(wanted));
             FontBox.SelectedItem = item;
         }
@@ -844,6 +965,7 @@ public partial class EditView : UserControl
     private void Remember()
     {
         history.Push((marks.Select(m => m.Clone()).ToList(), document));
+        redo.Clear(); // yeni bir işlem yapıldı: ileri alınacak bir şey kalmaz
         while (history.Count > 60) { var keep = history.Take(60).Reverse().ToList(); history.Clear(); foreach (var s in keep) history.Push(s); }
     }
 
@@ -853,9 +975,25 @@ public partial class EditView : UserControl
         if (busy) return;
         EndEdit(); EndRewrite(commit: false); EndParagraph(commit: false);
         if (history.Count == 0) return;
-        var (previousMarks, previousDocument) = history.Pop();
-        marks.Clear(); marks.AddRange(previousMarks); Select(null);
-        if (!ReferenceEquals(previousDocument, document)) { document = previousDocument; _ = ReloadPages(); return; }
+        redo.Push((marks.Select(m => m.Clone()).ToList(), document));
+        Restore(history.Pop());
+    }
+
+    private void Redo_Click(object? sender, RoutedEventArgs e) => Redo();
+    /// Geri alınan son işlemi yeniden uygular.
+    private void Redo()
+    {
+        if (busy) return;
+        EndEdit(); EndRewrite(commit: false); EndParagraph(commit: false);
+        if (redo.Count == 0) return;
+        history.Push((marks.Select(m => m.Clone()).ToList(), document));
+        Restore(redo.Pop());
+    }
+
+    private void Restore((List<Mark> Marks, byte[] Document) state)
+    {
+        marks.Clear(); marks.AddRange(state.Marks); Select(null);
+        if (!ReferenceEquals(state.Document, document)) { document = state.Document; _ = ReloadPages(); return; }
         Redraw();
     }
 
@@ -888,6 +1026,7 @@ public partial class EditView : UserControl
         if (e.Source is Visual origin && (origin.FindAncestorOfType<ComboBox>(true) is not null || origin.FindAncestorOfType<Slider>(true) is not null)) return;
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         if (e.Key == Key.Delete || e.Key == Key.Back) { DeleteSelected(); e.Handled = true; }
+        else if (ctrl && (e.Key == Key.Y || (e.Key == Key.Z && e.KeyModifiers.HasFlag(KeyModifiers.Shift)))) { Redo(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Z) { Undo(); e.Handled = true; }
         else if (e.Key == Key.Escape && (selected is not null || picked.Count > 0)) { Select(null); Redraw(); e.Handled = true; }
         else if (e.Key == Key.PageDown) { if (!busy) await ShowPage(page + 1); e.Handled = true; }
@@ -914,7 +1053,7 @@ public partial class EditView : UserControl
         var destination = OutputFolder.For(input);
         var result = await shell.RunAsync("Düzenlenen PDF kaydediliyor", (_, progress, token) =>
             Task.Run<IReadOnlyList<string>>(() => [PdfAnnotator.SaveNextTo(source, destination, list, token, originalName: input)], token));
-        if (result is not null) { history.Clear(); Redraw(); shell.ShowResult(result, "Düzenlediğiniz PDF yeni bir dosya olarak kaydedildi. Asıl PDF olduğu gibi duruyor."); }
+        if (result is not null) { history.Clear(); redo.Clear(); Redraw(); shell.ShowResult(result, "Düzenlediğiniz PDF yeni bir dosya olarak kaydedildi. Asıl PDF olduğu gibi duruyor."); }
         return result;
     }
 
@@ -932,7 +1071,6 @@ public partial class EditView : UserControl
         var area = sizes.TryGetValue(n, out var size) ? size.Width * size.Height : double.MaxValue;
         objects = [.. lines.Select(l => new PageObject(new Rect(l.X - 1.5, l.Y - 1.5, l.Width + 3, l.Height + 3), l)),
                    .. content.Images.Where(i => i.Width * i.Height < area * .6).Select(i => new PageObject(new Rect(i.X, i.Y, i.Width, i.Height), null))];
-        FillFonts();
     }
 
     private async Task BeginRewrite(TextLine line, double? clickX = null)
@@ -1138,15 +1276,99 @@ public partial class EditView : UserControl
 
     // ----- İmza -----
 
-    private static string SignaturePath => System.IO.Path.Combine(App.DataFolder, "imza.png");
+    // İmzalar bu bilgisayarda, uygulamanın veri klasöründe saklanır; uygulama kapatılıp açılınca yerinde durur.
+    private static string SignatureFolder => System.IO.Path.Combine(App.DataFolder, "imzalar");
+
+    /// Kayıtlı imzalar (eklenme sırasıyla). Eski tek imza dosyası varsa klasöre taşınır.
+    public static List<string> Signatures()
+    {
+        try
+        {
+            Directory.CreateDirectory(SignatureFolder);
+            var old = System.IO.Path.Combine(App.DataFolder, "imza.png");
+            if (File.Exists(old)) File.Move(old, System.IO.Path.Combine(SignatureFolder, "İmza.png"), overwrite: false);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        try { return [.. Directory.EnumerateFiles(SignatureFolder, "*.png").OrderBy(File.GetCreationTimeUtc).ThenBy(p => p, StringComparer.OrdinalIgnoreCase)]; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    /// Bir veya birkaç imza resmi seçtirir ve kalıcı olarak kaydeder. Ayarlar menüsünden de çağrılır.
+    public static async Task<List<string>> ChooseSignatures(MainWindow owner)
+    {
+        var saved = new List<string>();
+        foreach (var source in await Pick.Files(owner, Pick.Images, multiple: true))
+        {
+            try
+            {
+                using var bitmap = Images.Load(source);
+                Directory.CreateDirectory(SignatureFolder);
+                var stem = string.Concat(System.IO.Path.GetFileNameWithoutExtension(source).Where(c => !System.IO.Path.GetInvalidFileNameChars().Contains(c))).Trim();
+                if (stem.Length == 0) stem = "İmza";
+                var target = System.IO.Path.Combine(SignatureFolder, stem + ".png");
+                for (var i = 2; File.Exists(target); i++) target = System.IO.Path.Combine(SignatureFolder, $"{stem} ({i}).png");
+                File.WriteAllBytes(target, Images.Png(bitmap));
+                saved.Add(target);
+            }
+            catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException)
+            { await owner.Error("İmza kaydedilemedi: " + error.Message); }
+        }
+        return saved;
+    }
 
     private async void AddSignature_Click(object? sender, RoutedEventArgs e)
     {
         if (file is null) return;
-        if (!File.Exists(SignaturePath) && !await ChooseSignature(shell)) return;
+        if (Signatures().Count == 0)
+        {
+            var added = await ChooseSignatures(shell);
+            if (added.Count > 0) await PlaceSignature(added[0]);
+            return;
+        }
+        ShowSignatures();
+    }
+
+    /// İmza listesi: imzaya tıklayınca sayfaya eklenir; çarpı imzayı kayıtlardan siler; alttan yeni imza yüklenir.
+    private void ShowSignatures()
+    {
+        var panel = new StackPanel { Spacing = 4, MinWidth = 260 };
+        var flyout = new Flyout { Content = panel, Placement = PlacementMode.BottomEdgeAlignedLeft };
+        void Fill()
+        {
+            panel.Children.Clear();
+            panel.Children.Add(new TextBlock { Text = "Kayıtlı imzalar", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4, 0, 0, 4) });
+            foreach (var path in Signatures())
+            {
+                Control preview;
+                try { preview = new Image { Source = Decode(File.ReadAllBytes(path)), Height = 36, MaxWidth = 130, Stretch = Stretch.Uniform }; }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException) { continue; }
+                var add = new Button { Classes = { "ghost" }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10, Children = { new Border { Background = Brushes.White, Padding = new Thickness(4), CornerRadius = new CornerRadius(4), Child = preview }, new TextBlock { Text = System.IO.Path.GetFileNameWithoutExtension(path), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis } } } };
+                ToolTip.SetTip(add, "Sayfaya ekle");
+                add.Click += async (_, _) => { flyout.Hide(); await PlaceSignature(path); };
+                var remove = new Button { Classes = { "ghost" }, Padding = new Thickness(8, 6), Content = new PathIcon { Data = (Geometry)this.FindResource("IconClose")!, Width = 11, Height = 11 } };
+                ToolTip.SetTip(remove, "Bu imzayı kayıtlardan sil");
+                remove.Click += (_, _) =>
+                {
+                    try { File.Delete(path); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+                    if (Signatures().Count == 0) flyout.Hide(); else Fill();
+                };
+                var row = new DockPanel(); DockPanel.SetDock(remove, Dock.Right); row.Children.Add(remove); row.Children.Add(add);
+                panel.Children.Add(row);
+            }
+            var more = new Button { Classes = { "ghost" }, Content = "＋ Yeni imza yükle…", Margin = new Thickness(0, 4, 0, 0) };
+            more.Click += async (_, _) => { flyout.Hide(); if ((await ChooseSignatures(shell)).Count > 0) ShowSignatures(); };
+            panel.Children.Add(more);
+        }
+        Fill();
+        flyout.ShowAt(SignatureButton);
+    }
+
+    private async Task PlaceSignature(string path)
+    {
         try
         {
-            var png = File.ReadAllBytes(SignaturePath);
+            var png = File.ReadAllBytes(path);
             var image = Decode(png);
             var size = sizes[page];
             var height = 50.0; var width = height * image.PixelSize.Width / Math.Max(1, image.PixelSize.Height);
@@ -1156,22 +1378,6 @@ public partial class EditView : UserControl
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         { await shell.Error("İmza resmi okunamadı: " + error.Message); }
-    }
-
-    /// İmza resmini seçtirir ve PNG olarak kaydeder. Ayarlar menüsünden de çağrılır.
-    public static async Task<bool> ChooseSignature(MainWindow owner)
-    {
-        var picked = await Pick.Files(owner, Pick.Images, multiple: false);
-        if (picked.Length == 0) return false;
-        try
-        {
-            using var bitmap = Images.Load(picked[0]);
-            Directory.CreateDirectory(App.DataFolder);
-            File.WriteAllBytes(SignaturePath, Images.Png(bitmap));
-            return true;
-        }
-        catch (Exception error) when (error is UserFacingException or IOException or UnauthorizedAccessException)
-        { await owner.Error("İmza kaydedilemedi: " + error.Message); return false; }
     }
 
     // ----- Duman testi -----
@@ -1221,6 +1427,26 @@ public partial class EditView : UserControl
         var mark = new Mark { Kind = MarkKind.Text, Page = page, X = x, Y = y, Width = 360, Height = 26, Text = text, FontSize = 14, FontFamily = family };
         marks.Add(mark); Select(mark); Redraw();
     }
+    internal string CurrentColor => color;
+    internal IReadOnlyList<string> SwatchColors => [.. swatches.Keys];
+    internal IReadOnlyList<string> FontChoices => [.. FontBox.Items.OfType<ComboBoxItem>().Select(i => (i.Content?.ToString() ?? "") + (i.IsEnabled ? "" : " [kapalı]"))];
+    internal string SelectedFontLabel => (FontBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+    internal bool SurveyReady => survey is not null && FontCatalog.Ready;
+    internal bool CanUndo => history.Count > 0;
+    internal bool CanRedo => redo.Count > 0;
+    internal void SmokeRedo() => Redo();
+    internal void SmokeColor(string hex) => SetColor(hex);
+    internal void SmokeDropper(bool on) => PickColorButton.IsChecked = on;
+    internal void SmokePick(string startsWith) { SelectTool.IsChecked = true; Select(null); picked.Add(objects.First(o => o.Line is not null && o.Line.Text.StartsWith(startsWith, StringComparison.Ordinal))); Redraw(); }
+    internal string LineColor(string startsWith) => lines.First(x => x.Text.StartsWith(startsWith, StringComparison.Ordinal)).Color;
+    internal void SmokeFont(string label) { FontBox.SelectedItem = FontBox.Items.OfType<ComboBoxItem>().First(i => i.IsEnabled && (i.Content?.ToString() ?? "").StartsWith(label, StringComparison.OrdinalIgnoreCase)); }
+    internal void SmokeOpen(string what)
+    {
+        if (what == "fonts") FontBox.IsDropDownOpen = true;
+        else if (what == "color") CustomColor_Click(null, new RoutedEventArgs());
+        else if (what == "signatures") ShowSignatures();
+    }
+    internal static string SmokeSignatureFolder => SignatureFolder;
     internal int PickedCount => picked.Count;
     internal int ChosenCount => Chosen.Count();
     internal bool EditorOpen => editor is not null && EditorLayer.Children.Contains(editor);
