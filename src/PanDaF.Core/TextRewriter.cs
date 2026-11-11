@@ -6,9 +6,25 @@ namespace PanDaF.Core;
 
 /// Sayfadaki bir metin satırı: UI için sol üst köşeden konum (nokta), motor için bölge.
 public sealed record TextLine(string Text, double X, double Y, double Width, double Height, double FontSize, bool Bold,
-    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop, string FontName = "");
+    double RegionLeft, double RegionBottom, double RegionRight, double RegionTop, string FontName = "")
+{
+    /// Taban çizgisinin sayfanın üst kenarına uzaklığı (nokta).
+    public double Baseline { get; init; }
+    public string Color { get; init; } = "#000000";
+    public bool Italic { get; init; }
+}
 
-public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont, double? ShrunkToFontSize = null);
+/// Sayfadaki bir resmin yeri (sol üstten, nokta).
+public sealed record PageImage(double X, double Y, double Width, double Height);
+
+/// Düzenleyicinin bir sayfa için bildiği her şey: satırlar, resimler ve bilgisayarda da kurulu olan yazı tipi aileleri.
+public sealed record PageContent(List<TextLine> Lines, List<PageImage> Images, List<string> Fonts);
+
+public sealed record RewriteResult(byte[] Document, bool UsedSubstituteFont, double? ShrunkToFontSize = null)
+{
+    /// Yeni yazı görünmeyen bir renkle yazıldığı için rengi elle verildi.
+    public bool ColorRestored { get; init; }
+}
 
 /// Sayfadaki bir paragraf (motorun bulduğu aday). Konum UI için sol üstten, nokta cinsinden.
 public sealed record Paragraph(string Text, double X, double Y, double Width, double Height, string FontName, double FontSize, double Leading,
@@ -29,10 +45,70 @@ public static class TextRewriter
     /// Sayfadaki metin satırlarını çıkarır. Döndürülmüş sayfalarda boş liste döner (motor bölgeyi döndürülmemiş bekler).
     public static List<TextLine> Lines(byte[] document, int pageIndex)
     {
-        var result = new List<TextLine>();
         using var pdf = PigDocument.Open(document);
-        if (pageIndex < 0 || pageIndex >= pdf.NumberOfPages) return result;
+        if (pageIndex < 0 || pageIndex >= pdf.NumberOfPages) return [];
+        return Lines(pdf.GetPage(pageIndex + 1));
+    }
+
+    /// Satırlar, resimler ve yazı tipleri tek okumada. Döndürülmüş sayfada satır ve resim listesi boştur.
+    public static PageContent Page(byte[] document, int pageIndex)
+    {
+        using var pdf = PigDocument.Open(document);
+        if (pageIndex < 0 || pageIndex >= pdf.NumberOfPages) return new PageContent([], [], []);
         var page = pdf.GetPage(pageIndex + 1);
+        var images = new List<PageImage>();
+        if (page.Rotation.Value == 0)
+        {
+            var crop = page.CropBox.Bounds;
+            try
+            {
+                foreach (var image in page.GetImages())
+                {
+                    var b = image.BoundingBox;
+                    var left = Math.Min(b.Left, b.Right); var right = Math.Max(b.Left, b.Right); var bottom = Math.Min(b.Bottom, b.Top); var top = Math.Max(b.Bottom, b.Top);
+                    if (right - left < 8 || top - bottom < 8) continue;
+                    images.Add(new PageImage(left - crop.Left, crop.Top - top, right - left, top - bottom));
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException) { images.Clear(); }
+        }
+        // Yazı tipleri: sayfada en çok kullanılandan aza; yalnızca bu bilgisayarda dosyası bulunanlar (yeni yazı onunla yazılabilsin).
+        var fonts = page.Letters.Where(l => !string.IsNullOrWhiteSpace(l.Value) && !string.IsNullOrEmpty(l.FontName))
+            .GroupBy(l => l.FontName).OrderByDescending(g => g.Count()).Select(g => SystemFamily(g.Key!))
+            .Where(f => f is not null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new PageContent(Lines(page), images, fonts);
+    }
+
+    private static readonly Dictionary<string, string?> families = new(StringComparer.OrdinalIgnoreCase);
+
+    /// "ABCDEF+ComicSansMS-Bold" → "Comic Sans MS": PDF'deki yazı tipinin bu bilgisayarda kurulu ailesi; kurulu değilse null.
+    public static string? SystemFamily(string pdfFontName)
+    {
+        var family = Parse(pdfFontName, false).Family;
+        if (family.Length == 0) return null;
+        lock (families)
+        {
+            if (families.TryGetValue(family, out var cached)) return cached;
+            string? name = null;
+            var file = FindFontFile(family, false, false);
+            if (file is not null)
+            {
+                try { using var typeface = SkiaSharp.SKTypeface.FromFile(file); name = typeface?.FamilyName; }
+                catch (Exception error) when (error is IOException or ArgumentException or NotSupportedException) { }
+                // Ad, yazı tipi çözümleyicinin aynı dosyayı bulabileceği bir ad olmalı.
+                if (string.IsNullOrWhiteSpace(name) || FindFontFile(Parse(name, false).Family, false, false) is null) name = family;
+            }
+            return families[family] = name;
+        }
+    }
+
+    /// Bir satırın genişliğini verilen ailenin dosyasıyla ölçer (nokta).
+    public static double MeasureWidth(string text, string family, double size, bool bold, bool italic) =>
+        Measurer.For(FindFontFile(string.IsNullOrWhiteSpace(family) ? "Arial" : Parse(family, false).Family, bold, italic) ?? WindowsFontResolver.Locate("arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf"))(text, size);
+
+    private static List<TextLine> Lines(UglyToad.PdfPig.Content.Page page)
+    {
+        var result = new List<TextLine>();
         if (page.Rotation.Value != 0) return result;
         var crop = page.CropBox.Bounds;
         var words = page.GetWords().Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
@@ -67,9 +143,23 @@ public static class TextRewriter
         var size = Math.Clamp(letter?.PointSize ?? (top - bottom) / 1.2, 1, 300);
         var font = letter?.FontName ?? "";
         var text = string.Join(" ", words.Select(w => w.Text));
+        var color = "#000000";
+        try
+        {
+            if (letter?.Color is { } fill)
+            {
+                var (r, g, b) = fill.ToRGBValues();
+                color = $"#{Channel(r):X2}{Channel(g):X2}{Channel(b):X2}";
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or NotSupportedException or ArgumentException) { }
+        var parsed = Parse(font, false);
         return new TextLine(text, left - crop.Left, crop.Top - top, right - left, top - bottom, size, font.Contains("Bold", StringComparison.OrdinalIgnoreCase),
-            left - crop.Left - .5, bottom - crop.Bottom - .5, right - crop.Left + .5, top - crop.Bottom + .5, font);
+            left - crop.Left - .5, bottom - crop.Bottom - .5, right - crop.Left + .5, top - crop.Bottom + .5, font)
+        { Baseline = crop.Top - (letter?.StartBaseLine.Y ?? bottom), Color = color, Italic = parsed.Italic };
     }
+
+    private static int Channel(double value) => (int)Math.Round(Math.Clamp(value, 0, 1) * 255);
 
     /// Satır yerinde değiştirilebilir mi? Değilse Türkçe gerekçe döner.
     public static string? Blocker(byte[] document, int pageIndex, TextLine line)
@@ -92,17 +182,70 @@ public static class TextRewriter
         }
     }
 
-    public static RewriteResult Replace(byte[] document, int pageIndex, TextLine line, string newText, double? fontSize = null)
+    /// fillColor: "#RRGGBB" verilirse yeni yazı o renkle yazılır; verilmezse eski yazının rengi korunur.
+    public static RewriteResult Replace(byte[] document, int pageIndex, TextLine line, string newText, double? fontSize = null, string? fillColor = null)
     {
         try
         {
             var edit = new PdfTextLineEdit(pageIndex, Region(line), newText) { Substitute = SubstituteFor(line.FontName, line.Bold), FontSize = fontSize };
+            if (fillColor is not null)
+            {
+                var c = PdfAnnotator.ParseColor(fillColor);
+                edit = edit with { FillColor = new KillerPdf.Engine.Authoring.PdfRgbColor(c.R / 255.0, c.G / 255.0, c.B / 255.0) };
+            }
             var result = PdfTextLineEditor.Replace(KillerPdf.Engine.Documents.PdfDocument.Open(document), edit);
             return new RewriteResult(result.Document, result.Font == PdfTextLineFont.Substitute);
         }
         catch (NotSupportedException error) { throw new UserFacingException("Bu satır yerinde değiştirilemedi: " + error.Message, error); }
         catch (Exception error) when (error is FormatException or InvalidOperationException or ArgumentException)
         { throw new UserFacingException("Yazı değiştirilemedi: " + error.Message, error); }
+    }
+
+    /// Satırı değiştirir ve yeni yazının sayfada gerçekten göründüğünü denetler. Yazı görünmüyorsa (zeminle aynı
+    /// renkte yazılmışsa) satır, eski yazının rengiyle; o da görünmüyorsa siyahla yeniden yazılır.
+    public static RewriteResult ReplaceVisibly(byte[] document, int pageIndex, TextLine line, string newText)
+    {
+        var result = Replace(document, pageIndex, line, newText);
+        if (string.IsNullOrWhiteSpace(newText) || !Invisible(document, result.Document, pageIndex, line)) return result;
+        foreach (var color in new[] { line.Color, "#000000" }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var retry = Replace(document, pageIndex, line, newText, fillColor: color);
+            if (!Invisible(document, retry.Document, pageIndex, line)) return retry with { ColorRestored = true };
+        }
+        return result;
+    }
+
+    /// Eski satır sayfada görünürken yeni yazıdan hiç iz yoksa true: yeni yazı görünmeyen bir renkle yazılmıştır.
+    public static bool Invisible(byte[] before, byte[] after, int pageIndex, TextLine line)
+    {
+        try
+        {
+            const int dpi = 96; const double scale = dpi / 72.0;
+            using var oldDocument = PdfRasterDocument.Open(before); using var oldPage = oldDocument.RenderBitmap(pageIndex, dpi);
+            using var newDocument = PdfRasterDocument.Open(after); using var newPage = newDocument.RenderBitmap(pageIndex, dpi);
+            if (oldPage.Width != newPage.Width || oldPage.Height != newPage.Height) return false;
+            var left = Math.Clamp((int)((line.X - 1) * scale), 0, oldPage.Width - 1); var right = Math.Clamp((int)Math.Ceiling((line.X + line.Width + 1) * scale), left + 1, oldPage.Width);
+            var top = Math.Clamp((int)((line.Y - 1) * scale), 0, oldPage.Height - 1); var bottom = Math.Clamp((int)Math.Ceiling((line.Y + line.Height + 1) * scale), top + 1, oldPage.Height);
+            static int Distance(SkiaSharp.SKColor a, SkiaSharp.SKColor b) => Math.Abs(a.Red - b.Red) + Math.Abs(a.Green - b.Green) + Math.Abs(a.Blue - b.Blue);
+            // Zemin: satır kutusunun kenarında en çok geçen renk.
+            var edge = new Dictionary<SkiaSharp.SKColor, int>();
+            for (var x = left; x < right; x++) foreach (var y in new[] { top, bottom - 1 }) { var c = oldPage.GetPixel(x, y); edge[c] = edge.GetValueOrDefault(c) + 1; }
+            var background = edge.MaxBy(e => e.Value).Key;
+            var inkBefore = 0; var inkAfter = 0;
+            for (var y = top; y < bottom; y++)
+                for (var x = left; x < newPage.Width; x++)
+                {
+                    var now = newPage.GetPixel(x, y);
+                    if (x < right)
+                    {
+                        if (Distance(oldPage.GetPixel(x, y), background) > 60) inkBefore++;
+                        if (Distance(now, background) > 60) inkAfter++;
+                    }
+                    else if (Distance(now, oldPage.GetPixel(x, y)) > 60) inkAfter++; // yeni yazı eskisinden uzunsa sağa taşar
+                }
+            return inkBefore >= 8 && inkAfter <= 1;
+        }
+        catch (Exception error) when (error is UserFacingException or ArgumentException or InvalidOperationException) { return false; }
     }
 
     // ----- Yedek yazı tipi: önce aynı ailenin Windows'taki tam hâli, yoksa Arial -----
@@ -119,13 +262,13 @@ public static class TextRewriter
             if (substitutes.TryGetValue(key, out var cached)) return cached;
             TrueTypeFont font;
             var file = FindFontFile(family, bold, italic);
-            try { font = file is null ? (bold ? BoldFont.Value : Regular.Value) : TrueTypeFont.Load(File.ReadAllBytes(file)); }
+            try { font = file is null ? (bold ? BoldFont.Value : Regular.Value) : TrueTypeFont.Load(FontFiles.Read(file)); }
             catch (Exception error) when (error is IOException or FormatException or InvalidOperationException or ArgumentException) { font = bold ? BoldFont.Value : Regular.Value; }
             return substitutes[key] = font;
         }
     }
 
-    internal static (string Family, bool Bold, bool Italic) Parse(string name, bool boldHint)
+    public static (string Family, bool Bold, bool Italic) Parse(string name, bool boldHint)
     {
         name = name ?? "";
         var plus = name.IndexOf('+'); if (plus is >= 0 and <= 7) name = name[(plus + 1)..];
@@ -174,7 +317,7 @@ public static class TextRewriter
         if (known is not null)
         {
             var style = (bold, italic) switch { (true, true) => " Bold Italic", (true, false) => " Bold", (false, true) => " Italic", _ => "" };
-            var exact = WindowsFontResolver.Locate(known[index] + ".ttf", family + style + ".ttf", family.Replace(" ", "") + style.Replace(" ", "") + ".ttf", known[0] + ".ttf", family + ".ttf");
+            var exact = WindowsFontResolver.Locate(known[index] + ".ttf", known[index] + ".ttc", family + style + ".ttf", family.Replace(" ", "") + style.Replace(" ", "") + ".ttf", known[0] + ".ttf", family + ".ttf");
             if (exact is not null) return exact;
         }
         // Bilinmeyen aile: dosya adı aileyle başlayan .ttf'ler arasında stile göre seç.

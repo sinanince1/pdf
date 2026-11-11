@@ -13,17 +13,21 @@ public sealed class PdfRasterDocument : IDisposable
     private nint document; private GCHandle source; private PdfFormPreview? form;
     public int PageCount { get; }
 
-    private PdfRasterDocument(string path, string password)
+    private static byte[] ReadFile(string path)
     {
-        byte[] data;
         try
         {
             using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var length = input.Length;
             if (length < 1 || length > 300_000_000) throw new UserFacingException("Lütfen 300 MB'tan küçük bir PDF seçin.");
-            data = new byte[checked((int)length)]; input.ReadExactly(data);
+            var data = new byte[checked((int)length)]; input.ReadExactly(data);
+            return data;
         }
         catch (IOException error) { throw new UserFacingException(PdfPages.Friendly(path, error), error); }
+    }
+
+    private PdfRasterDocument(byte[] data, string path, string password)
+    {
         lock (gate)
         {
             if (!initialized) { Native.FPDF_InitLibrary(); initialized = true; }
@@ -49,7 +53,10 @@ public sealed class PdfRasterDocument : IDisposable
         }
     }
 
-    public static PdfRasterDocument Open(string path, string password = "") => new(path, password);
+    public static PdfRasterDocument Open(string path, string password = "") => new(ReadFile(path), path, password);
+
+    /// Bellekteki PDF'yi açar (baytlar belge kapanana dek değiştirilmemelidir).
+    public static PdfRasterDocument Open(byte[] data, string name = "belge.pdf") => new(data, name, "");
 
     /// Sayfayı (0'dan başlayan index) verilen DPI'da beyaz zeminle çizer. Çağıran bitmap'i Dispose eder.
     public SKBitmap RenderBitmap(int index, int dpi, CancellationToken token = default)

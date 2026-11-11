@@ -23,12 +23,16 @@ public sealed class Mark
     public string Color { get; set; } = "#000000"; // yazı, kalem; vurgu rengi
     public double StrokeWidth { get; set; } = 2;
     public List<(double X, double Y)> Points { get; set; } = [];  // kalem
-    public byte[]? ImagePng { get; set; }
+    public byte[]? ImagePng { get; set; }           // resim (PNG veya JPEG baytları)
+    public string FontFamily { get; set; } = "";    // yazı: boşsa Arial
+    public bool Italic { get; set; }
+    /// Sayfadan alınıp taşınan bir öğenin asıl yerini örten kutu: seçilemez, taşınamaz.
+    public bool Cover { get; set; }
 
     public Mark Clone() => new()
     {
         Kind = Kind, Page = Page, X = X, Y = Y, Width = Width, Height = Height, Text = Text, FontSize = FontSize, Bold = Bold,
-        Color = Color, StrokeWidth = StrokeWidth, Points = [.. Points], ImagePng = ImagePng,
+        Color = Color, StrokeWidth = StrokeWidth, Points = [.. Points], ImagePng = ImagePng, FontFamily = FontFamily, Italic = Italic, Cover = Cover,
     };
 }
 
@@ -91,7 +95,7 @@ public static class PdfAnnotator
                 break;
             case MarkKind.Text:
                 if (string.IsNullOrWhiteSpace(mark.Text)) break;
-                var font = new XFont("Arial", mark.FontSize, mark.Bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
+                var font = FontOf(mark.FontFamily, mark.FontSize, mark.Bold, mark.Italic);
                 var formatter = new XTextFormatter(g) { Alignment = XParagraphAlignment.Left };
                 // Metin kutusu kısaysa taşan satırlar kesilmesin: yükseklik gerektiği kadar uzar.
                 var rect = new XRect(mark.X + 2, mark.Y + 2, Math.Max(10, mark.Width - 4), Math.Max(mark.Height, mark.FontSize * 1.3 * (mark.Text.Count(c => c == '\n') + 1) + 4));
@@ -104,6 +108,23 @@ public static class PdfAnnotator
                 g.DrawImage(image, mark.X, mark.Y, mark.Width, mark.Height);
                 break;
         }
+    }
+
+    private static XFont FontOf(string family, double size, bool bold, bool italic) =>
+        new(string.IsNullOrWhiteSpace(family) ? "Arial" : family, Math.Max(1, size), (bold, italic) switch { (true, true) => XFontStyleEx.BoldItalic, (true, false) => XFontStyleEx.Bold, (false, true) => XFontStyleEx.Italic, _ => XFontStyleEx.Regular });
+
+    /// Yazı kutusunun üst kenarından ilk satırın taban çizgisine uzaklık ve satır yüksekliği (nokta).
+    /// Sayfadan alınan bir satırı aynı taban çizgisine oturtmak ve önizlemeyi kayıtla hizalamak için.
+    public static (double Ascent, double LineHeight) TextMetrics(string family, double size, bool bold, bool italic)
+    {
+        WindowsFontResolver.Install();
+        try
+        {
+            var font = FontOf(family, size, bold, italic);
+            var line = font.GetHeight();
+            return (line * font.CellAscent / Math.Max(1, font.CellSpace), line);
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException or UserFacingException or IOException) { return (size * .93, size * 1.15); }
     }
 
     public static XColor ParseColor(string hex)
@@ -172,14 +193,34 @@ public sealed class WindowsFontResolver : IFontResolver
     /// Arial (yoksa Segoe UI) dosyasının baytları; yerinde yazı değiştirmede yedek yazı tipi olarak kullanılır.
     public static byte[] FontBytes(bool bold) => new WindowsFontResolver().GetFont(bold ? "pandaf-b" : "pandaf-r")!;
 
+    private const string FilePrefix = "pandaf-dosya:";
+
+    /// Arial dışındaki bir aile istenirse ve bilgisayarda kuruluysa o dosya kullanılır; yoksa Arial (ve yedekleri).
     public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
     {
+        var family = TextRewriter.Parse(familyName, false).Family;
+        if (family.Length > 0 && !family.Equals("Arial", StringComparison.OrdinalIgnoreCase))
+        {
+            var file = TextRewriter.FindFontFile(family, bold, italic);
+            if (file is not null)
+            {
+                // Kalın/eğik dosyası yoksa düz dosya döner; o durumda PDFsharp kalını/eğiği kendisi üretir.
+                var regular = bold || italic ? TextRewriter.FindFontFile(family, false, false) : null;
+                var same = regular is not null && string.Equals(regular, file, StringComparison.OrdinalIgnoreCase);
+                return new FontResolverInfo(FilePrefix + file, same && bold, same && italic);
+            }
+        }
         var face = (bold, italic) switch { (true, true) => "bi", (true, false) => "b", (false, true) => "i", _ => "r" };
         return new FontResolverInfo("pandaf-" + face);
     }
 
     public byte[]? GetFont(string faceName)
     {
+        if (faceName.StartsWith(FilePrefix, StringComparison.Ordinal))
+        {
+            try { return FontFiles.Read(faceName[FilePrefix.Length..]); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return GetFont("pandaf-r"); }
+        }
         var face = faceName.Replace("pandaf-", "");
         string[] candidates = face switch
         {
@@ -191,5 +232,50 @@ public sealed class WindowsFontResolver : IFontResolver
         var found = Locate(candidates);
         if (found is not null) return File.ReadAllBytes(found);
         throw new UserFacingException("Yazı tipi bulunamadı: bilgisayarda Arial (veya Liberation Sans / DejaVu Sans) yüklü olmalı.");
+    }
+}
+
+/// Yazı tipi dosyası okur. Koleksiyon (.ttc; ör. Windows'taki Cambria) içindeki yüz, PDFsharp'ın ve
+/// yerinde düzenleme motorunun okuyabildiği tek başına bir TrueType dosyasına çevrilir.
+public static class FontFiles
+{
+    public static byte[] Read(string path, int face = 0)
+    {
+        var data = File.ReadAllBytes(path);
+        return IsCollection(data) ? Extract(data, face) : data;
+    }
+
+    public static bool IsCollection(byte[] data) => data.Length > 16 && data[0] == (byte)'t' && data[1] == (byte)'t' && data[2] == (byte)'c' && data[3] == (byte)'f';
+
+    public static byte[] Extract(byte[] collection, int face)
+    {
+        uint U32(int at) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(collection.AsSpan(at, 4));
+        int U16(int at) => System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(collection.AsSpan(at, 2));
+        var count = (int)U32(8);
+        if (count < 1) throw new FormatException("Yazı tipi koleksiyonu boş.");
+        if (face < 0 || face >= count) face = 0;
+        var start = checked((int)U32(12 + face * 4));
+        var tables = U16(start + 4);
+        var result = new MemoryStream();
+        result.Write(collection, start, 12);
+        var offset = 12 + tables * 16;
+        var records = new List<(int Offset, int Length)>();
+        Span<byte> number = stackalloc byte[4];
+        for (var i = 0; i < tables; i++)
+        {
+            var record = start + 12 + i * 16;
+            var length = checked((int)U32(record + 12));
+            records.Add((checked((int)U32(record + 8)), length));
+            result.Write(collection, record, 8);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(number, (uint)offset); result.Write(number);
+            result.Write(collection, record + 12, 4);
+            offset += (length + 3) & ~3;
+        }
+        foreach (var (at, length) in records)
+        {
+            result.Write(collection, at, length);
+            for (var pad = (4 - length % 4) % 4; pad > 0; pad--) result.WriteByte(0);
+        }
+        return result.ToArray();
     }
 }

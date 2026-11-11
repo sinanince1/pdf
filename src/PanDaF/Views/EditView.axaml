@@ -24,7 +24,7 @@
             <Button Name="DeleteButton" Classes="ghost" Click="Delete_Click" IsEnabled="False" ToolTip.Tip="Seçili öğeyi sil (Delete)"><PathIcon Data="{StaticResource IconDelete}" Width="15" Height="15"/></Button>
           </StackPanel>
           <WrapPanel VerticalAlignment="Center">
-            <RadioButton Name="SelectTool" Classes="tool" GroupName="Tool" IsChecked="True" ToolTip.Tip="Seç ve taşı">
+            <RadioButton Name="SelectTool" Classes="tool" GroupName="Tool" IsChecked="True" ToolTip.Tip="Seç ve taşı: sayfadaki bir yazıyı veya resmi sürükleyerek taşıyın. Birkaçını birden seçmek için boş yerden sürükleyin veya Shift ile tıklayın. Delete siler, ok tuşları ince ayar yapar.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconCursor}" Width="14" Height="14"/><TextBlock Text="Seç"/></StackPanel>
             </RadioButton>
             <RadioButton Name="RewriteTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Var olan yazıyı değiştir: satıra tıklayın, yenisini yazın, Enter'a basın. Aynı yazı tipiyle, yerinde değişir.">
@@ -33,8 +33,8 @@
             <RadioButton Name="ParagraphTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Paragrafı değiştir: paragrafa tıklayın, metni düzenleyin, Ctrl+Enter ile uygulayın. Satırlar kutuya göre yeniden akar.">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconParagraph}" Width="14" Height="14"/><TextBlock Text="Paragraf"/></StackPanel>
             </RadioButton>
-            <RadioButton Name="TextTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Yeni yazı kutusu: sayfada tıklayıp yazın">
-              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconText}" Width="14" Height="14"/><TextBlock Text="Yeni yazı"/></StackPanel>
+            <RadioButton Name="TextTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Yazı ekle: sayfada istediğiniz yere tıklayıp yazın. Yazı tipini, boyutunu ve rengini sağdaki kutulardan seçin.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconText}" Width="14" Height="14"/><TextBlock Text="Yazı ekle"/></StackPanel>
             </RadioButton>
             <RadioButton Name="WhiteoutTool" Classes="tool" GroupName="Tool" ToolTip.Tip="Kapat: bir alanı sayfa rengiyle örter; üstüne yeni yazı yazabilirsiniz">
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconEraser}" Width="14" Height="14"/><TextBlock Text="Kapat"/></StackPanel>
@@ -46,8 +46,8 @@
               <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconPen}" Width="14" Height="14"/><TextBlock Text="Kalem"/></StackPanel>
             </RadioButton>
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
-            <Button Classes="ghost" Click="AddImage_Click" ToolTip.Tip="Bilgisayarınızdan resim ekleyin">
-              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconImage}" Width="14" Height="14"/><TextBlock Text="Resim"/></StackPanel>
+            <Button Classes="ghost" Click="AddImage_Click" ToolTip.Tip="Bilgisayarınızdan bir veya birkaç resim seçip sayfaya ekleyin. Resim dosyasını sayfanın üzerine sürükleyip bırakabilirsiniz de.">
+              <StackPanel Orientation="Horizontal" Spacing="6"><PathIcon Data="{StaticResource IconImage}" Width="14" Height="14"/><TextBlock Text="Resim ekle"/></StackPanel>
             </Button>
             <Button Classes="ghost" Click="AddIstek_Click" ToolTip.Tip="İSTEK logosunu sol üste ekle">
               <StackPanel Orientation="Horizontal" Spacing="6"><Image Source="avares://PanDaF/Assets/LogoIstek.png" Height="18"/><TextBlock Text="İSTEK"/></StackPanel>
@@ -66,6 +66,7 @@
             <Rectangle Width="1" Height="22" Fill="{StaticResource Line}" Margin="6,0"/>
             <!-- Yazı seçenekleri -->
             <StackPanel Name="TextOptions" Orientation="Horizontal" VerticalAlignment="Center">
+              <ComboBox Name="FontBox" Width="170" FontSize="13" Margin="0,0,6,0" SelectionChanged="Font_Changed" ToolTip.Tip="Yazı tipi: Arial ve bu sayfada kullanılan yazı tipleri"/>
               <ComboBox Name="FontSizeBox" Width="72" FontSize="13" SelectedIndex="2" SelectionChanged="FontSize_Changed" ToolTip.Tip="Yazı boyutu">
                 <ComboBoxItem Content="10"/><ComboBoxItem Content="12"/><ComboBoxItem Content="14"/><ComboBoxItem Content="16"/><ComboBoxItem Content="18"/><ComboBoxItem Content="22"/><ComboBoxItem Content="28"/><ComboBoxItem Content="36"/>
               </ComboBox>
@@ -83,13 +84,15 @@
 
     <!-- Sayfa -->
     <Border Grid.Row="1" Name="PageArea" IsVisible="False" Margin="0,10,0,0" Background="#DED9D2" CornerRadius="12" ClipToBounds="True">
-      <ScrollViewer Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Focusable="False" SizeChanged="Scroller_SizeChanged">
+      <ScrollViewer Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Focusable="False" BringIntoViewOnFocusChange="False" SizeChanged="Scroller_SizeChanged">
         <Grid Name="PageHost" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="24">
           <LayoutTransformControl Name="ZoomHost">
             <Border Background="White">
               <Grid>
                 <Image Name="PageImage" Stretch="Fill"/>
                 <Canvas Name="Overlay" Background="Transparent"/>
+                <!-- Düzenleme kutuları: sayfa yeniden çizilirken yerinde kalsın diye ayrı katman -->
+                <Canvas Name="EditorLayer"/>
               </Grid>
             </Border>
           </LayoutTransformControl>

@@ -250,6 +250,105 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        await Test("Sayfa içeriği ve satırı taşıma: taban çizgisi, renk, resim", () =>
+        {
+            var folder = Folder("icerik");
+            var source = Path.Combine(folder, "kaynak.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage(); pg.Width = PdfSharp.Drawing.XUnit.FromPoint(595); pg.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                g.DrawString("Birinci satır yerinde kalır", new PdfSharp.Drawing.XFont("Arial", 14), PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 100));
+                g.DrawString("Taşınacak mavi satır", new PdfSharp.Drawing.XFont("Arial", 16, PdfSharp.Drawing.XFontStyleEx.Bold), PdfSharp.Drawing.XBrushes.DarkBlue, new PdfSharp.Drawing.XPoint(60, 140));
+                using var picture = PdfSharp.Drawing.XImage.FromFile(landscape);
+                g.DrawImage(picture, 300, 200, 160, 100);
+                doc.Save(source);
+            }
+            var bytes = File.ReadAllBytes(source);
+            var content = TextRewriter.Page(bytes, 0);
+            Check(content.Lines.Count == 2, $"iki satır bulundu ({content.Lines.Count})");
+            var line = content.Lines.First(l => l.Text.StartsWith("Taşınacak"));
+            Check(Math.Abs(line.Baseline - 140) < .6 && line.Color == "#00008B" && line.Bold && Math.Abs(line.FontSize - 16) < .1, $"taban çizgisi, renk, kalınlık ve boyut okundu ({line.Baseline:0.0}, {line.Color}, {line.Bold}, {line.FontSize})");
+            Check(content.Images.Count == 1 && Math.Abs(content.Images[0].X - 300) < 1 && Math.Abs(content.Images[0].Y - 200) < 1 && Math.Abs(content.Images[0].Width - 160) < 1, $"resmin yeri okundu ({content.Images.Count})");
+            // Düzenleyicinin yaptığı gibi: satırı belgeden çıkar, aynı yazı tipiyle 150 pt sağa ve 200 pt aşağıya yaz.
+            var family = TextRewriter.SystemFamily(line.FontName) ?? "";
+            var (ascent, lineHeight) = PdfAnnotator.TextMetrics(family, line.FontSize, line.Bold, line.Italic);
+            var mark = new Mark { Kind = MarkKind.Text, Page = 0, X = line.X - 2 + 150, Y = line.Baseline - ascent - 2 + 200, Width = line.Width + 40, Height = lineHeight + 4, Text = line.Text, FontSize = line.FontSize, Bold = line.Bold, Color = line.Color, FontFamily = family };
+            var removed = TextRewriter.Replace(bytes, 0, line, " ").Document;
+            var work = Path.Combine(folder, "ara.pdf"); File.WriteAllBytes(work, removed);
+            var output = Path.Combine(folder, "tasindi.pdf");
+            PdfAnnotator.Save(work, output, [mark]);
+            var after = TextRewriter.Lines(File.ReadAllBytes(output), 0);
+            var moved = after.Where(l => l.Text.StartsWith("Taşınacak")).ToList();
+            Check(moved.Count == 1, $"satır eski yerinden çıktı, yenisi tek ({moved.Count})");
+            Check(moved.Count == 1 && Math.Abs(moved[0].Baseline - 340) < .8 && Math.Abs(moved[0].X - (line.X + 150)) < 1.5 && moved[0].Color == "#00008B",
+                $"taşınan satır aynı taban çizgisinde ve renkte ({(moved.Count == 1 ? $"{moved[0].X:0.0},{moved[0].Baseline:0.0} {moved[0].Color}" : "yok")}; beklenen {line.X + 150:0.0},340.0)");
+            Check(after.Any(l => l.Text.StartsWith("Birinci")), "öbür satır duruyor");
+            // Yerinde değiştirilen yazı görünür mü denetimi: beyaz yazılan satır yakalanır, düzgün yazılan yakalanmaz.
+            var first = content.Lines.First(l => l.Text.StartsWith("Birinci"));
+            var white = TextRewriter.Replace(bytes, 0, first, "Beyaza dönen yazı", fillColor: "#FFFFFF").Document;
+            var normal = TextRewriter.Replace(bytes, 0, first, "Düzgün değişen ve eskisinden epeyce daha uzun bir yazı").Document;
+            Check(TextRewriter.Invisible(bytes, white, 0, first) && !TextRewriter.Invisible(bytes, normal, 0, first), "zeminle aynı renkte yazılan satır fark edildi");
+            var red = TextRewriter.Lines(TextRewriter.Replace(bytes, 0, first, "Kırmızı yazı", fillColor: "#C00000").Document, 0).First(l => l.Text.StartsWith("Kırmızı"));
+            Check(red.Color == "#C00000", $"satır istenen renkle yazılabiliyor ({red.Color})");
+            var visible = TextRewriter.ReplaceVisibly(bytes, 0, first, "Görünür kalan yazı");
+            Check(!visible.ColorRestored && TextRewriter.Lines(visible.Document, 0).First(l => l.Text.StartsWith("Görünür")).Color == "#000000", "düzgün değişen satırın rengine dokunulmadı");
+            return Task.CompletedTask;
+        });
+
+        await Test("Eklenen yazıda yazı tipi ailesi ve koleksiyon (.ttc) dosyaları", () =>
+        {
+            var folder = Folder("yazi-tipi");
+            var family = new[] { "Times New Roman", "Liberation Serif", "DejaVu Serif", "Georgia", "Comic Sans MS" }.FirstOrDefault(f => TextRewriter.FindFontFile(f, false, false) is not null);
+            if (family is null) Console.WriteLine("  BİLGİ Arial dışında bilinen bir aile kurulu değil; aile testi atlandı");
+            else
+            {
+                var output = Path.Combine(folder, "aile.pdf");
+                PdfAnnotator.Save(threePages, output, [
+                    new Mark { Kind = MarkKind.Text, Page = 0, X = 60, Y = 60, Width = 400, Height = 30, Text = "Seçilen aileyle yazı ĞÜŞİÖÇ", FontSize = 16, FontFamily = family },
+                    new Mark { Kind = MarkKind.Text, Page = 0, X = 60, Y = 100, Width = 400, Height = 30, Text = "Arial ile yazı", FontSize = 16 }]);
+                using var pdf = UglyToad.PdfPig.PdfDocument.Open(output);
+                var names = pdf.GetPage(1).Letters.Select(l => (l.FontName ?? "").Replace(" ", "")).Distinct().ToList();
+                Check(names.Any(n => n.Contains(family.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)), $"{family} PDF'ye gömüldü: {string.Join(", ", names)}");
+                Check(names.Count >= 2, "Arial yazısı ayrı yazı tipiyle duruyor");
+                Check(TextRewriter.SystemFamily("ABCDEF+" + family.Replace(" ", "") + "-Bold") is { } system && TextRewriter.FindFontFile(TextRewriter.Parse(system, false).Family, false, false) is not null, "PDF yazı tipi adı kurulu aileye eşlendi");
+            }
+            Check(TextRewriter.SystemFamily("ABCDEF+BöyleBirYazıTipiYok") is null, "kurulu olmayan aile listelenmez");
+            // İki TrueType dosyasından bir koleksiyon kur, ikinci yüzü geri çıkar.
+            var first = WindowsFontResolver.Locate("arial.ttf", "Arial.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf");
+            var second = WindowsFontResolver.Locate("arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf");
+            if (first is null || second is null) { Console.WriteLine("  BİLGİ koleksiyon testi için iki yazı tipi dosyası bulunamadı"); return Task.CompletedTask; }
+            var faces = new[] { File.ReadAllBytes(first), File.ReadAllBytes(second) };
+            var collection = new MemoryStream();
+            void Write32(uint value) { Span<byte> b = stackalloc byte[4]; System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(b, value); collection.Write(b); }
+            collection.Write("ttcf"u8); Write32(0x00010000); Write32(2);
+            var position = 12 + 8; var starts = new List<int>();
+            foreach (var face in faces) { starts.Add(position); position += face.Length + 3 & ~3; }
+            foreach (var start in starts) Write32((uint)start);
+            for (var i = 0; i < faces.Length; i++)
+            {
+                var face = (byte[])faces[i].Clone();
+                int tables = face[4] << 8 | face[5];
+                for (var t = 0; t < tables; t++)
+                {
+                    var record = 12 + t * 16 + 8;
+                    var offset = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(face.AsSpan(record, 4)) + (uint)starts[i];
+                    System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(face.AsSpan(record, 4), offset);
+                }
+                collection.Write(face);
+                while (collection.Length % 4 != 0) collection.WriteByte(0);
+            }
+            var path = Path.Combine(folder, "deneme.ttc"); File.WriteAllBytes(path, collection.ToArray());
+            var extracted = FontFiles.Read(path, 1);
+            using var original = SKTypeface.FromFile(second);
+            using var data = SKData.CreateCopy(extracted);
+            using var typeface = SKTypeface.FromData(data);
+            Check(FontFiles.IsCollection(File.ReadAllBytes(path)) && !FontFiles.IsCollection(extracted) && typeface is not null && typeface.FamilyName == original.FamilyName && typeface.IsBold == original.IsBold && typeface.GlyphCount == original.GlyphCount,
+                $"koleksiyondan ikinci yüz çıkarıldı ({typeface?.FamilyName}, {typeface?.GlyphCount} glif)");
+            Check(KillerPdf.Engine.Fonts.TrueTypeFont.Load(extracted) is not null, "çıkarılan yüz düzenleme motorunda yüklendi");
+            return Task.CompletedTask;
+        });
+
         await Test("İptal yarım dosya bırakmaz", async () =>
         {
             var folder = Folder("iptal");

@@ -156,6 +156,84 @@ internal static class SmokeTest
                 Check(text.Contains("cuma") && !text.Contains("perşembe") && text.Contains("Saygılarımızla"), "Paragraf metni değişti, altındaki satır duruyor: " + text);
             }
 
+            // Seç ve taşı, yazı ekle, düzenleme kutusu (gerçek işaretçi olaylarıyla)
+            var movePdf = Path.Combine(input, "Çalışma kâğıdı.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage(); pg.Width = PdfSharp.Drawing.XUnit.FromPoint(595); pg.Height = PdfSharp.Drawing.XUnit.FromPoint(842);
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                for (var i = 0; i < 22; i++) g.DrawString($"Soru {i + 1}: örnek yazı burada duruyor", new PdfSharp.Drawing.XFont("Arial", 13), PdfSharp.Drawing.XBrushes.Black, new PdfSharp.Drawing.XPoint(60, 90 + i * 32));
+                using var picture = PdfSharp.Drawing.XImage.FromFile(images[0]);
+                g.DrawImage(picture, 360, 100, 160, 100);
+                doc.Save(movePdf);
+            }
+            var move = new EditView(window); window.Navigate(move, "PDF'yi düzenle"); await Settle();
+            move.Load(movePdf);
+            await WaitUntil(() => move.Toolbar.IsVisible && move.ObjectCount > 0, 30000);
+            await Settle(500);
+            Check(move.ObjectCount == 23, $"Sayfadaki seçilebilir öğeler bulundu: 22 satır ve 1 resim ({move.ObjectCount})");
+            async Task Idle() { await Settle(200); await WaitUntil(() => !move.Busy, 60000); await Settle(300); }
+            async Task Drag(double x, double y, double dx, double dy)
+            {
+                move.SmokePointer(0, x, y);
+                for (var i = 1; i <= 5; i++) move.SmokePointer(1, x + dx * i / 5, y + dy * i / 5);
+                move.SmokePointer(2, x + dx, y + dy);
+                await Idle();
+            }
+            // Sayfanın altındaki satır düzenlemeye açılınca görünüm yerinde kalır; kutu yeniden çizimde kapanmaz.
+            move.SmokeZoom(2); await Settle(400);
+            move.ScrollOffset = new Vector(0, move.ScrollExtent.Height); await Settle(400);
+            var scrolled = move.ScrollOffset;
+            await move.SmokeRewriteBox(20, .5); await Settle(500);
+            Check(move.RewriteBoxOpen && Math.Abs(move.ScrollOffset.Y - scrolled.Y) < 2 && Math.Abs(move.ScrollOffset.X - scrolled.X) < 2, $"Alttaki satır düzenlenirken sayfa yerinde kaldı (kaydırma {scrolled.Y:0} → {move.ScrollOffset.Y:0})");
+            move.SmokeRedraw(); await Settle();
+            Check(move.RewriteBoxOpen && move.RewriteCaret is > 5 and < 30, $"Düzenleme kutusu yeniden çizimde açık kaldı, imleç tıklanan yerde ({move.RewriteCaret}; odak {move.RewriteBoxFocused})");
+            Capture(window, Path.Combine(shots, "21-alttaki-satir.png"));
+            move.SmokeCancelRewrite(); move.SmokeZoom(1); move.ScrollOffset = default; await Settle(400);
+            // Tek satırı sürükle
+            move.SmokeTool("select");
+            var q3 = move.SmokeLine("Soru 3:");
+            await Drag(q3.X + 20, q3.Y + 4, 200, 6);
+            Check(!move.HasLine("Soru 3:") && move.SmokeMarks.Any(m => m.Kind == MarkKind.Text && m.Text.StartsWith("Soru 3:") && Math.Abs(m.X - (q3.X - 2 + 200)) < 1), "Sayfadaki satır sürüklenerek taşındı; eski yerinden çıkarıldı");
+            // Alan seçip birlikte sürükle
+            var q5 = move.SmokeLine("Soru 5:"); var q7 = move.SmokeLine("Soru 7:");
+            await Drag(q5.X - 20, q5.Y - 6, q5.Width + 60, q7.Y + q7.Height - q5.Y + 12);
+            Check(move.PickedCount == 3, $"Alan seçimi üç satırı seçti ({move.PickedCount})");
+            await Drag(q5.X + 10, q5.Y + 4, 220, 0);
+            Check(!move.HasLine("Soru 5:") && !move.HasLine("Soru 6:") && !move.HasLine("Soru 7:") && move.SmokeMarks.Count(m => m.Kind == MarkKind.Text && Math.Abs(m.X - (q5.X - 2 + 220)) < 1) == 3 && move.ChosenCount == 3, "Seçilen üç satır birlikte taşındı");
+            // Boş yere çizilen alan bir şey seçmez
+            await Drag(430, 600, 90, 70);
+            Check(move.PickedCount == 0 && move.ChosenCount == 0, "Boş alanda seçim oluşmadı");
+            // Sayfadaki satırı sil
+            var q9 = move.SmokeLine("Soru 9:");
+            move.SmokePointer(0, q9.X + 10, q9.Y + 4); move.SmokePointer(2, q9.X + 10, q9.Y + 4); await Idle();
+            Check(move.PickedCount == 1, "Sayfadaki satır tıklanınca seçildi");
+            move.SmokeDelete(); await Idle();
+            Check(!move.HasLine("Soru 9:") && !move.SmokeMarks.Any(m => m.Text.StartsWith("Soru 9:")), "Seçilen satır sayfadan silindi");
+            // Resmi taşı, geri al, yeniden taşı
+            await Drag(505, 186, -40, 420);
+            Check(move.SmokeMarks.Any(m => m.Kind == MarkKind.Image) && move.SmokeMarks.Any(m => m.Cover), "Sayfadaki resim taşındı, eski yeri örtüldü");
+            move.SmokeUndo(); await Idle();
+            Check(!move.SmokeMarks.Any(m => m.Kind == MarkKind.Image) && !move.SmokeMarks.Any(m => m.Cover), "Geri al resmi eski yerine döndürdü");
+            await Drag(505, 186, -40, 420);
+            Check(move.SmokeMarks.Count(m => m.Kind == MarkKind.Image) == 1 && move.SmokeMarks.Count(m => m.Cover) == 1, "Geri alınan resim yeniden taşınabildi");
+            // Yazı ekle: kutu açılır, yazılır, yeniden çizimde kapanmaz
+            move.SmokeTool("text");
+            move.SmokePointer(0, 360, 330); move.SmokePointer(2, 360, 330); await Settle(400);
+            Check(move.EditorOpen, "Yazı ekle: tıklanan yerde yazı kutusu açıldı");
+            move.SmokeType("Elle eklenen yazı ĞÜŞİÖÇ"); await Settle(); move.SmokeRedraw(); await Settle();
+            Check(move.EditorOpen, "Yazı kutusu yazarken açık kaldı");
+            move.SmokeEndEdit(); await Settle();
+            Capture(window, Path.Combine(shots, "22-sec-ve-tasi.png"));
+            var moveTask = move.SaveAsync();
+            var movedOut = await Result(window);
+            await moveTask;
+            var movedLines = TextRewriter.Lines(File.ReadAllBytes(movedOut[0]), 0);
+            var moved3 = movedLines.FirstOrDefault(l => l.Text.StartsWith("Soru 3:"));
+            Check(moved3 is not null && Math.Abs(moved3.X - (q3.X + 200)) < 2.5 && Math.Abs(moved3.Y - (q3.Y + 6)) < 2.5, $"Kaydedilen PDF'de taşınan satır yeni yerinde ({moved3?.X:0.0},{moved3?.Y:0.0}; beklenen {q3.X + 200:0.0},{q3.Y + 6:0.0})");
+            Check(movedLines.Count(l => l.Text.StartsWith("Soru 3:")) == 1 && !movedLines.Any(l => l.Text.StartsWith("Soru 9:")) && movedLines.Any(l => l.Text.StartsWith("Elle eklenen yazı ĞÜŞİÖÇ")), "Kaydedilen PDF: taşınan satır tek, silinen yok, eklenen yazı var");
+            using (var raster = PdfRasterDocument.Open(movedOut[0])) { using var bitmap = raster.RenderBitmap(0, 72); File.WriteAllBytes(Path.Combine(shots, "23-tasinmis-sayfa.png"), Images.Png(bitmap)); }
+
             // PDF'den resme
             var fromPdf = new FromPdfView(window); window.Navigate(fromPdf, "PDF'den çevir"); await Settle();
             fromPdf.Add([threePages]); fromPdf.ToJpg.IsChecked = true; await Settle(600);
