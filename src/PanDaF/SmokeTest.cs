@@ -181,6 +181,8 @@ internal static class SmokeTest
                 await Idle();
             }
             // Sayfanın altındaki satır düzenlemeye açılınca görünüm yerinde kalır; kutu yeniden çizimde kapanmaz.
+            // Araç önce seçilir: araç çubuğunun yüksekliği araca göre değişir, görünüm alanı ona göre oturur.
+            move.SmokeTool("rewrite"); await Settle(400);
             move.SmokeZoom(2); await Settle(400);
             move.ScrollOffset = new Vector(0, move.ScrollExtent.Height); await Settle(400);
             var scrolled = move.ScrollOffset;
