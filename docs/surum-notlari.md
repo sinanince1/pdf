@@ -7,6 +7,7 @@
 **Mac:** Çipinize uygun ZIP'i indirin (**AppleSilicon**: M1/M2/M3/M4 · **Intel**), açın, **PanDaF.app**'ı Uygulamalar klasörüne sürükleyin. İlk açılışta uygulamaya **sağ tık → Aç** deyin. Word/PowerPoint/Excel dönüşümleri için LibreOffice'in kurulu olması gerekir.
 
 ### Düzeltme (2.2.1)
+- Office yüklü olmayan bilgisayarlarda Word/PowerPoint/Excel dönüşümü için gereken LibreOffice artık indirilemiyordu (eski adres kaldırılmış); kalıcı adresten indiriliyor.
 - Kenarı kırpılmış, sayfa kutusu kaydırılmış veya döndürülmüş PDF'lerde kapatma, yazı, resim ve öbür eklemeler kaydedilen dosyada kayıyordu (kapatılan yerin bir kenarı açıkta kalıyordu). Artık ekranda nereye konduysa oraya kaydediliyor.
 
 ### 2.2: PDF'yi düzenle

@@ -16,10 +16,13 @@ public sealed class LibreOffice(string root)
 {
     private const string Version = "26.8.1";
     private const string Sha256 = "c6298b10cfa1748bcbedad94c62ce771e240e5021bfd6d7a967cd571b04b5312";
+    // Arşivde sürümler yapı numarasıyla durur (26.8.1.1); dosya aynıdır, özeti (SHA-256) birebir tutar.
+    // "stable" adresi yeni sürüm çıkınca kaldırılır; arşiv adresi kalıcıdır.
+    private const string ArchiveBuild = "26.8.1.1";
     private static readonly Uri[] Sources =
     [
         new($"https://download.documentfoundation.org/libreoffice/stable/{Version}/win/x86_64/LibreOffice_{Version}_Win_x86-64.msi"),
-        new($"https://downloadarchive.documentfoundation.org/libreoffice/old/{Version}/win/x86_64/LibreOffice_{Version}_Win_x86-64.msi"),
+        new($"https://downloadarchive.documentfoundation.org/libreoffice/old/{ArchiveBuild}/win/x86_64/LibreOffice_{ArchiveBuild}_Win_x86-64.msi"),
     ];
     private static readonly TimeSpan ConversionTimeout = TimeSpan.FromMinutes(5);
     internal const string DisabledPythonLoader = "pythonloaderlo.dll.disabled-by-nashi";
