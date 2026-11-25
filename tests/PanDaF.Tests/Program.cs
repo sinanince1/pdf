@@ -362,6 +362,65 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        await Test("Kapatma kutusu kırpılmış, kaydırılmış ve döndürülmüş sayfalarda tam yerine düşer", () =>
+        {
+            var folder = Folder("kapatma-yeri");
+            var source = Path.Combine(folder, "kaynak.pdf");
+            using (var doc = new PdfSharp.Pdf.PdfDocument())
+            {
+                var pg = doc.AddPage(); pg.Width = PdfSharp.Drawing.XUnit.FromPoint(600); pg.Height = PdfSharp.Drawing.XUnit.FromPoint(800);
+                using var g = PdfSharp.Drawing.XGraphics.FromPdfPage(pg);
+                g.DrawRectangle(PdfSharp.Drawing.XBrushes.Black, 150, 220, 180, 26);   // kapatılacak kutu
+                g.DrawRectangle(PdfSharp.Drawing.XBrushes.Black, 150, 400, 180, 26);   // yerinde kalacak kutu
+                doc.Save(source);
+            }
+            (string Name, Action<PdfSharp.Pdf.PdfPage> Change)[] cases =
+            [
+                ("düz sayfa", _ => { }),
+                ("kırpma kutusu", p => p.Elements["/CropBox"] = new PdfSharp.Pdf.PdfRectangle(new PdfSharp.Drawing.XPoint(30, 50), new PdfSharp.Drawing.XPoint(550, 770))),
+                ("kaydırılmış sayfa kutusu", p => p.Elements["/MediaBox"] = new PdfSharp.Pdf.PdfRectangle(new PdfSharp.Drawing.XPoint(-20, -8), new PdfSharp.Drawing.XPoint(590, 806))),
+                ("ikisi birden", p => { p.Elements["/MediaBox"] = new PdfSharp.Pdf.PdfRectangle(new PdfSharp.Drawing.XPoint(-10, -30), new PdfSharp.Drawing.XPoint(620, 830)); p.Elements["/CropBox"] = new PdfSharp.Pdf.PdfRectangle(new PdfSharp.Drawing.XPoint(12, 9), new PdfSharp.Drawing.XPoint(590, 795)); }),
+                ("90° döndürülmüş", p => p.Elements.SetInteger("/Rotate", 90)),
+                ("180° döndürülmüş", p => p.Elements.SetInteger("/Rotate", 180)),
+                ("270° döndürülmüş ve kırpılmış", p => { p.Elements.SetInteger("/Rotate", 270); p.Elements["/CropBox"] = new PdfSharp.Pdf.PdfRectangle(new PdfSharp.Drawing.XPoint(30, 50), new PdfSharp.Drawing.XPoint(550, 770)); }),
+            ];
+            static List<SKRectI> Boxes(SKBitmap bitmap)
+            {
+                // Siyah piksellerin bağlı dikdörtgenleri (kutular birbirine değmez): satır aralıklarından bulunur.
+                var result = new List<SKRectI>();
+                bool Dark(int x, int y) { var c = bitmap.GetPixel(x, y); return c.Red < 90 && c.Green < 90 && c.Blue < 90; }
+                var seen = new bool[bitmap.Width, bitmap.Height];
+                for (var y = 0; y < bitmap.Height; y++)
+                    for (var x = 0; x < bitmap.Width; x++)
+                    {
+                        if (seen[x, y] || !Dark(x, y)) continue;
+                        int x1 = x, y1 = y;
+                        while (x1 + 1 < bitmap.Width && Dark(x1 + 1, y)) x1++;
+                        while (y1 + 1 < bitmap.Height && Dark(x, y1 + 1)) y1++;
+                        for (var yy = y; yy <= y1; yy++) for (var xx = x; xx <= x1; xx++) seen[xx, yy] = true;
+                        if (x1 - x > 6 && y1 - y > 6) result.Add(new SKRectI(x, y, x1 + 1, y1 + 1));
+                    }
+                return result;
+            }
+            foreach (var (name, change) in cases)
+            {
+                var input = Path.Combine(folder, name + ".pdf");
+                using (var doc = PdfSharp.Pdf.IO.PdfReader.Open(source, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify)) { change(doc.Pages[0]); doc.Save(input); }
+                // Ekranın yaptığı gibi: sayfayı çiz, kutuları ekrandaki yerlerinde bul, ilkini tam üstünden kapat.
+                List<SKRectI> before;
+                using (var raster = PdfRasterDocument.Open(input)) { using var bitmap = raster.RenderBitmap(0, 72); before = Boxes(bitmap); }
+                Check(before.Count == 2, $"{name}: iki kutu görünüyor ({before.Count})");
+                if (before.Count != 2) continue;
+                var target = before[0];
+                var output = Path.Combine(folder, name + " (kapatıldı).pdf");
+                PdfAnnotator.Save(input, output, [new Mark { Kind = MarkKind.Whiteout, Page = 0, X = target.Left - .5, Y = target.Top - .5, Width = target.Width + 1, Height = target.Height + 1, Color = "#FFFFFF" }]);
+                List<SKRectI> after;
+                using (var raster = PdfRasterDocument.Open(output)) { using var bitmap = raster.RenderBitmap(0, 72); after = Boxes(bitmap); }
+                Check(after.Count == 1 && after[0] == before[1], $"{name}: kapatılan kutu tümüyle kapandı, öbürü yerinde ({after.Count} kutu kaldı)");
+            }
+            return Task.CompletedTask;
+        });
+
         await Test("İptal yarım dosya bırakmaz", async () =>
         {
             var folder = Folder("iptal");

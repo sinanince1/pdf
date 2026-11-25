@@ -6,7 +6,10 @@
 
 **Mac:** Çipinize uygun ZIP'i indirin (**AppleSilicon**: M1/M2/M3/M4 · **Intel**), açın, **PanDaF.app**'ı Uygulamalar klasörüne sürükleyin. İlk açılışta uygulamaya **sağ tık → Aç** deyin. Word/PowerPoint/Excel dönüşümleri için LibreOffice'in kurulu olması gerekir.
 
-### Yeni (2.2): PDF'yi düzenle
+### Düzeltme (2.2.1)
+- Kenarı kırpılmış, sayfa kutusu kaydırılmış veya döndürülmüş PDF'lerde kapatma, yazı, resim ve öbür eklemeler kaydedilen dosyada kayıyordu (kapatılan yerin bir kenarı açıkta kalıyordu). Artık ekranda nereye konduysa oraya kaydediliyor.
+
+### 2.2: PDF'yi düzenle
 - **Renkler:** hazır renklerin yanında belgedeki yazı renkleri de gösterilir. Palet düğmesiyle istediğiniz rengi seçin; damlalıkla sayfadaki bir yazının veya yerin rengini alın. Seç aracıyla seçtiğiniz sayfa yazısının rengi de değiştirilebilir.
 - **Yazı tipleri:** listede en üstte belgede kullanılanlar “(bu belgede var)” notuyla, altında bilgisayardaki tüm yazı tipleri yer alır.
 - **İmzalar:** birden fazla imza yükleyin; imzalar bilgisayarda saklanır, İmza düğmesinden seçilir veya silinir.

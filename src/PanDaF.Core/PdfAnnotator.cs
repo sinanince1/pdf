@@ -66,12 +66,39 @@ public static class PdfAnnotator
                     if (group.Key < 0 || group.Key >= document.PageCount) continue;
                     var page = document.Pages[group.Key];
                     using var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append, XGraphicsUnit.Point, XPageDirection.Downwards);
+                    graphics.MultiplyTransform(ViewToPage(page));
                     foreach (var mark in group) Draw(graphics, mark, keep);
                 }
                 document.Save(output);
             }
             finally { foreach (var item in keep) item.Dispose(); }
         }
+    }
+
+    /// Ekranda görülen sayfanın (kırpma kutusu, döndürme uygulanmış; sol üstten, nokta) koordinatlarını PDFsharp'ın
+    /// çizim koordinatlarına çevirir. PDFsharp sayfanın tam kutusunun (MediaBox) yüksekliğini esas alır, kutunun
+    /// başlangıcını, kırpma kutusunu ve döndürmeyi hesaba katmaz; ekran ise kırpılmış ve döndürülmüş sayfayı gösterir.
+    /// Bu dönüşüm olmadan, kırpma kutusu olan sayfalarda eklenenler kaydedilen PDF'de kayar.
+    public static XMatrix ViewToPage(PdfPage page)
+    {
+        var media = page.MediaBox;
+        double left = Math.Min(media.X1, media.X2), right = Math.Max(media.X1, media.X2), bottom = Math.Min(media.Y1, media.Y2), top = Math.Max(media.Y1, media.Y2);
+        var height = top - bottom;
+        if (page.Elements.ContainsKey("/CropBox"))
+        {
+            var crop = page.Elements.GetRectangle("/CropBox");
+            double l = Math.Max(left, Math.Min(crop.X1, crop.X2)), r = Math.Min(right, Math.Max(crop.X1, crop.X2)), b = Math.Max(bottom, Math.Min(crop.Y1, crop.Y2)), t = Math.Min(top, Math.Max(crop.Y1, crop.Y2));
+            if (r - l > 1 && t - b > 1) { left = l; right = r; bottom = b; top = t; }
+        }
+        var rotation = ((page.Elements.GetInteger("/Rotate") % 360) + 360) % 360;
+        // XMatrix: x' = x·m11 + y·m21 + dx,  y' = x·m12 + y·m22 + dy
+        return rotation switch
+        {
+            90 => new XMatrix(0, -1, 1, 0, left, height - bottom),
+            180 => new XMatrix(-1, 0, 0, -1, right, height - bottom),
+            270 => new XMatrix(0, 1, -1, 0, right, height - top),
+            _ => new XMatrix(1, 0, 0, 1, left, height - top),
+        };
     }
 
     private static void Draw(XGraphics g, Mark mark, List<IDisposable> keep)
